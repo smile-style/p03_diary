@@ -59,8 +59,12 @@ const excerptSchema = z.object({
 const linkSchema = z
   .url('链接必须是合法 URL')
   .refine((value) => {
-    const protocol = new URL(value).protocol
-    return protocol === 'http:' || protocol === 'https:'
+    try {
+      const protocol = new URL(value).protocol
+      return protocol === 'http:' || protocol === 'https:'
+    } catch {
+      return false
+    }
   }, '链接必须使用 http:// 或 https://')
 
 export const recordInputSchema = z

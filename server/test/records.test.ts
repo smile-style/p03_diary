@@ -428,6 +428,24 @@ describe('records', () => {
     expect(await deps.db.selectFrom('excerpts').selectAll().execute()).toEqual([])
   })
 
+  it('returns validation errors and writes nothing for malformed links', async () => {
+    const { app, deps, tokenA } = await setupUsers()
+    const malformedLinks = ['not a url', 'http://', '']
+
+    for (const link of malformedLinks) {
+      const response = await request(app, tokenA, {
+        method: 'POST',
+        url: '/records',
+        payload: recordPayload({ links: [link] }),
+      })
+
+      expect(response.statusCode, link).toBe(400)
+      expect(response.json()).toMatchObject({ error: { code: 'VALIDATION' } })
+    }
+
+    expect(await deps.db.selectFrom('records').selectAll().execute()).toEqual([])
+  })
+
   it('isolates records, topics, and images across users and requires authentication', async () => {
     const { app, deps, tokenA, tokenB, userIdA } = await setupUsers()
     const topicA = await createTopic(app, tokenA)
