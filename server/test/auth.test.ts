@@ -125,7 +125,7 @@ describe('WeChat authentication', () => {
       headers: authHeader(token),
     })
     expect(authenticated.statusCode).toBe(200)
-    expect(authenticated.json()).toEqual([])
+    expect(authenticated.json()).toEqual({ items: expect.any(Array) })
 
 
     const session = await app.inject({

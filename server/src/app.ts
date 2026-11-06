@@ -6,6 +6,8 @@ import { sql } from 'kysely'
 import { ZodError } from 'zod'
 import { registerAuth } from './auth/plugin.js'
 import { registerAuthRoutes } from './auth/routes.js'
+import { registerCategoryRoutes } from './categories/routes.js'
+import { registerTopicRoutes } from './topics/routes.js'
 import type { Deps } from './deps.js'
 import { AppError } from './errors.js'
 
@@ -105,7 +107,8 @@ export async function buildApp(
     return { ok: true }
   })
 
-  app.get('/categories', { preHandler: app.requireUser }, async () => [])
+  registerCategoryRoutes(app, deps)
+  registerTopicRoutes(app, deps)
 
   return app
 }
