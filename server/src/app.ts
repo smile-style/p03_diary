@@ -13,6 +13,7 @@ import type { Deps } from './deps.js'
 import { AppError } from './errors.js'
 import { registerImageRoutes } from './images/routes.js'
 import { registerWechatPushRoutes } from './moderation/push-routes.js'
+import { registerRecordRoutes } from './records/routes.js'
 
 type BuildAppOptions = {
   logger?: FastifyServerOptions['logger']
@@ -121,6 +122,7 @@ export async function buildApp(
   registerCategoryRoutes(app, deps)
   registerTopicRoutes(app, deps)
   registerImageRoutes(app, deps)
+  registerRecordRoutes(app, deps)
   registerWechatPushRoutes(app, deps)
 
   return app
