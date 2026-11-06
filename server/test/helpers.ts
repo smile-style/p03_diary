@@ -1,3 +1,6 @@
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import type { FastifyInstance } from 'fastify'
 import type { Kysely } from 'kysely'
 import { sql } from 'kysely'
@@ -8,6 +11,8 @@ import type { DB } from '../src/db/db.js'
 import { createDb } from '../src/db/db.js'
 import { migrateToLatest } from '../src/db/migrate.js'
 import type { Deps } from '../src/deps.js'
+import { LocalFileStorage } from '../src/images/storage.js'
+import { PassThroughChecker } from '../src/moderation/checker.js'
 import { AppError } from '../src/errors.js'
 
 const testConfig: Config = {
@@ -57,29 +62,44 @@ export async function createTestApp(
   overrides: Partial<Deps> = {},
 ): Promise<{ app: FastifyInstance; deps: Deps }> {
   const databaseUrl = process.env.TEST_DATABASE_URL ?? testConfig.databaseUrl
+  const storageDir = await mkdtemp(join(tmpdir(), 'wx-daily-test-storage-'))
   const ownedDb = overrides.db ? undefined : createDb(databaseUrl)
   const db = overrides.db ?? ownedDb!
 
-  await migrateToLatest(db)
-  await resetDb(db)
+  try {
+    await migrateToLatest(db)
+    await resetDb(db)
 
-  const deps: Deps = {
-    config: { ...testConfig, databaseUrl },
-    db,
-    wechat: new FakeWechatClient(),
-    checker: undefined,
-    storage: undefined,
-    ...overrides,
-  }
+    const config: Config = {
+      ...testConfig,
+      databaseUrl,
+      ...overrides.config,
+      storageDir,
+    }
+    const deps: Deps = {
+      config,
+      db,
+      wechat: overrides.wechat ?? new FakeWechatClient(),
+      checker: overrides.checker ?? new PassThroughChecker(),
+      storage: overrides.storage ?? new LocalFileStorage(storageDir),
+    }
 
-  const app = await buildApp(deps)
-  if (ownedDb) {
+    const app = await buildApp(deps)
     app.addHook('onClose', async () => {
-      await ownedDb.destroy()
+      await rm(storageDir, { recursive: true, force: true })
+      if (ownedDb) {
+        await ownedDb.destroy()
+      }
     })
-  }
 
-  return { app, deps }
+    return { app, deps }
+  } catch (error) {
+    await rm(storageDir, { recursive: true, force: true })
+    if (ownedDb) {
+      await ownedDb.destroy()
+    }
+    throw error
+  }
 }
 
 export function authHeader(token: string): { authorization: string } {

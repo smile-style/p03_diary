@@ -189,12 +189,12 @@ describe('WeChat authentication', () => {
     expect(auth.statusCode).toBe(200)
 
     const file = await app.inject({ method: 'GET', url: '/files/missing.txt' })
-    expect(file.statusCode).toBe(404)
-    expect(file.json()).toMatchObject({ error: { code: 'NOT_FOUND' } })
+    expect(file.statusCode).toBe(403)
+    expect(file.json()).toMatchObject({ error: { code: 'FORBIDDEN' } })
 
     const push = await app.inject({ method: 'POST', url: '/wechat/push', payload: {} })
-    expect(push.statusCode).toBe(404)
-    expect(push.json()).toMatchObject({ error: { code: 'NOT_FOUND' } })
+    expect(push.statusCode).toBe(403)
+    expect(push.json()).toMatchObject({ error: { code: 'FORBIDDEN' } })
   })
 
   it('rolls back the whole first login when default category creation fails', async () => {

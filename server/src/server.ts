@@ -4,6 +4,7 @@ import { buildApp } from './app.js'
 import { createDb } from './db/db.js'
 import { createChecker } from './deps.js'
 import { migrateToLatest } from './db/migrate.js'
+import { LocalFileStorage } from './images/storage.js'
 
 const config = loadConfig(process.env)
 const db = createDb(config.databaseUrl)
@@ -17,7 +18,7 @@ const app = await buildApp({
   db,
   wechat,
   checker: createChecker(config, wechat),
-  storage: undefined,
+  storage: new LocalFileStorage(config.storageDir),
 })
 
 const shutdown = async () => {

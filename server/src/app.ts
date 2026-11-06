@@ -1,3 +1,4 @@
+import multipart from '@fastify/multipart'
 import Fastify, {
   type FastifyInstance,
   type FastifyServerOptions,
@@ -10,6 +11,8 @@ import { registerCategoryRoutes } from './categories/routes.js'
 import { registerTopicRoutes } from './topics/routes.js'
 import type { Deps } from './deps.js'
 import { AppError } from './errors.js'
+import { registerImageRoutes } from './images/routes.js'
+import { registerWechatPushRoutes } from './moderation/push-routes.js'
 
 type BuildAppOptions = {
   logger?: FastifyServerOptions['logger']
@@ -99,6 +102,14 @@ export async function buildApp(
     })
   })
 
+  await app.register(multipart, {
+    throwFileSizeLimit: true,
+    limits: {
+      fileSize: 10 * 1024 * 1024,
+      files: 1,
+    },
+  })
+
   await registerAuth(app, deps.config.jwtSecret)
   registerAuthRoutes(app, deps)
 
@@ -109,6 +120,8 @@ export async function buildApp(
 
   registerCategoryRoutes(app, deps)
   registerTopicRoutes(app, deps)
+  registerImageRoutes(app, deps)
+  registerWechatPushRoutes(app, deps)
 
   return app
 }
