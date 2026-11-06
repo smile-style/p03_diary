@@ -77,3 +77,11 @@ export type Page<T> = {
   items: T[]
   nextCursor: string | null
 }
+
+export type RecordFilter = {
+  date?: string
+  topicId?: string
+  tag?: string
+  q?: string
+  starred?: boolean
+}
