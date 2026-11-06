@@ -1,6 +1,8 @@
 import type { FastifyInstance } from 'fastify'
+import { Writable } from 'node:stream'
 import { sql } from 'kysely'
 import { afterEach, describe, expect, it } from 'vitest'
+import { buildApp } from '../src/app.js'
 import { createTestApp } from './helpers.js'
 
 const apps: FastifyInstance[] = []
@@ -18,6 +20,62 @@ describe('server health', () => {
 
     expect(res.statusCode).toBe(200)
     expect(res.json()).toEqual({ ok: true })
+  })
+
+  it('畸形 JSON 请求返回 400 VALIDATION', async () => {
+    const { app } = await createTestApp()
+    apps.push(app)
+    app.post('/test-body', async (request) => request.body)
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/test-body',
+      headers: { 'content-type': 'application/json' },
+      payload: '{"broken"',
+    })
+
+    expect(res.statusCode).toBe(400)
+    expect(res.json().error.code).toBe('VALIDATION')
+  })
+
+  it('不支持的 Content-Type 返回 415 VALIDATION', async () => {
+    const { app } = await createTestApp()
+    apps.push(app)
+    app.post('/test-body', async (request) => request.body)
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/test-body',
+      headers: { 'content-type': 'application/x-unsupported' },
+      payload: 'hello',
+    })
+
+    expect(res.statusCode).toBe(415)
+    expect(res.json().error.code).toBe('VALIDATION')
+  })
+
+  it('未知异常返回 500 并记录错误日志', async () => {
+    const { app, deps } = await createTestApp()
+    const chunks: Buffer[] = []
+    const stream = new Writable({
+      write(chunk, _encoding, callback) {
+        chunks.push(Buffer.from(chunk))
+        callback()
+      },
+    })
+    const loggedApp = await buildApp(deps, {
+      logger: { level: 'error', stream },
+    })
+    apps.push(app, loggedApp)
+    loggedApp.get('/boom', async () => {
+      throw new Error('boom')
+    })
+
+    const res = await loggedApp.inject({ method: 'GET', url: '/boom' })
+
+    expect(res.statusCode).toBe(500)
+    expect(res.json().error.code).toBe('INTERNAL')
+    expect(Buffer.concat(chunks).toString()).toContain('unhandled error')
   })
 
   it('迁移后所有表都存在', async () => {

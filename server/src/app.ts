@@ -1,13 +1,65 @@
-import Fastify, { type FastifyInstance } from 'fastify'
+import Fastify, {
+  type FastifyInstance,
+  type FastifyServerOptions,
+} from 'fastify'
 import { sql } from 'kysely'
 import { ZodError } from 'zod'
 import type { Deps } from './deps.js'
 import { AppError } from './errors.js'
 
-export async function buildApp(deps: Deps): Promise<FastifyInstance> {
-  const app = Fastify({ logger: false })
+type BuildAppOptions = {
+  logger?: FastifyServerOptions['logger']
+}
 
-  app.setErrorHandler((error, _request, reply) => {
+function errorStatusCode(error: unknown) {
+  if (error && typeof error === 'object' && 'statusCode' in error) {
+    const statusCode = (error as { statusCode?: unknown }).statusCode
+    if (typeof statusCode === 'number') {
+      return statusCode
+    }
+  }
+  return 500
+}
+
+function clientErrorCode(statusCode: number) {
+  switch (statusCode) {
+    case 401:
+      return 'UNAUTHORIZED'
+    case 404:
+      return 'NOT_FOUND'
+    case 409:
+      return 'CONFLICT'
+    default:
+      return 'VALIDATION'
+  }
+}
+
+function clientErrorMessage(statusCode: number) {
+  switch (statusCode) {
+    case 401:
+      return '请先登录'
+    case 404:
+      return '接口不存在'
+    case 409:
+      return '资源冲突'
+    case 413:
+      return '请求内容过大'
+    case 415:
+      return '请求内容类型不支持'
+    default:
+      return '请求参数不合法'
+  }
+}
+
+export async function buildApp(
+  deps: Deps,
+  options: BuildAppOptions = {},
+): Promise<FastifyInstance> {
+  const app = Fastify({
+    logger: options.logger ?? process.env.NODE_ENV !== 'test',
+  })
+
+  app.setErrorHandler((error, request, reply) => {
     if (error instanceof AppError) {
       return reply.status(error.status).send({
         error: { code: error.code, message: error.message },
@@ -21,6 +73,17 @@ export async function buildApp(deps: Deps): Promise<FastifyInstance> {
       })
     }
 
+    const statusCode = errorStatusCode(error)
+    if (statusCode >= 400 && statusCode < 500) {
+      return reply.status(statusCode).send({
+        error: {
+          code: clientErrorCode(statusCode),
+          message: clientErrorMessage(statusCode),
+        },
+      })
+    }
+
+    request.log.error({ err: error }, 'unhandled error')
     return reply.status(500).send({
       error: { code: 'INTERNAL', message: '服务器内部错误' },
     })
