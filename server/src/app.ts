@@ -4,6 +4,8 @@ import Fastify, {
 } from 'fastify'
 import { sql } from 'kysely'
 import { ZodError } from 'zod'
+import { registerAuth } from './auth/plugin.js'
+import { registerAuthRoutes } from './auth/routes.js'
 import type { Deps } from './deps.js'
 import { AppError } from './errors.js'
 
@@ -95,10 +97,15 @@ export async function buildApp(
     })
   })
 
+  await registerAuth(app, deps.config.jwtSecret)
+  registerAuthRoutes(app, deps)
+
   app.get('/health', async () => {
     await sql`select 1`.execute(deps.db)
     return { ok: true }
   })
+
+  app.get('/categories', { preHandler: app.requireUser }, async () => [])
 
   return app
 }

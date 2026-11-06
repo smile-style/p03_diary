@@ -1,3 +1,4 @@
+import { HttpWechatClient } from './auth/wechat-client.js'
 import { loadConfig } from './config.js'
 import { buildApp } from './app.js'
 import { createDb } from './db/db.js'
@@ -11,7 +12,7 @@ await migrateToLatest(db)
 const app = await buildApp({
   config,
   db,
-  wechat: undefined,
+  wechat: new HttpWechatClient(config.wechatAppId, config.wechatSecret),
   checker: undefined,
   storage: undefined,
 })

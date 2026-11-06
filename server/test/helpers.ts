@@ -3,10 +3,12 @@ import type { Kysely } from 'kysely'
 import { sql } from 'kysely'
 import { buildApp } from '../src/app.js'
 import type { Config } from '../src/config.js'
+import type { WechatClient } from '../src/auth/wechat-client.js'
 import type { DB } from '../src/db/db.js'
 import { createDb } from '../src/db/db.js'
 import { migrateToLatest } from '../src/db/migrate.js'
 import type { Deps } from '../src/deps.js'
+import { AppError } from '../src/errors.js'
 
 const testConfig: Config = {
   port: 3000,
@@ -19,6 +21,20 @@ const testConfig: Config = {
   contentCheck: 'off',
   storageDir: './uploads',
   publicBaseUrl: 'http://localhost:3000',
+}
+
+export class FakeWechatClient implements WechatClient {
+  async code2Session(code: string): Promise<{ openid: string }> {
+    if (!code.startsWith('code_') || code.length === 'code_'.length) {
+      throw new AppError(401, 'UNAUTHORIZED', '登录失败，请重试')
+    }
+
+    return { openid: code.slice('code_'.length) }
+  }
+
+  async getAccessToken(): Promise<string> {
+    return 'fake-access-token'
+  }
 }
 
 export async function resetDb(db: Kysely<DB>): Promise<void> {
@@ -50,7 +66,7 @@ export async function createTestApp(
   const deps: Deps = {
     config: { ...testConfig, databaseUrl },
     db,
-    wechat: undefined,
+    wechat: new FakeWechatClient(),
     checker: undefined,
     storage: undefined,
     ...overrides,
@@ -64,4 +80,22 @@ export async function createTestApp(
   }
 
   return { app, deps }
+}
+
+export function authHeader(token: string): { authorization: string } {
+  return { authorization: `Bearer ${token}` }
+}
+
+export async function login(app: FastifyInstance, openid = 'A'): Promise<string> {
+  const response = await app.inject({
+    method: 'POST',
+    url: '/auth/wechat',
+    payload: { code: `code_${openid}` },
+  })
+
+  if (response.statusCode !== 200) {
+    throw new Error(`login failed with status ${response.statusCode}`)
+  }
+
+  return response.json<{ token: string }>().token
 }
