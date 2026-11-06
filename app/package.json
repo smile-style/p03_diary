@@ -1,0 +1,31 @@
+{
+  "name": "wx-daily-app",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev:mp-weixin": "uni -p mp-weixin",
+    "build:mp-weixin": "uni build -p mp-weixin",
+    "dev:h5": "uni",
+    "build:h5": "uni build",
+    "test": "vitest run --config vitest.config.ts",
+    "typecheck": "vue-tsc --noEmit"
+  },
+  "dependencies": {
+    "@dcloudio/uni-app": "3.0.0-5030420261029002",
+    "@dcloudio/uni-components": "3.0.0-5030420261029002",
+    "@dcloudio/uni-h5": "3.0.0-5030420261029002",
+    "@dcloudio/uni-mp-weixin": "3.0.0-5030420261029002",
+    "pinia": "3.0.4",
+    "vue": "3.5.45",
+    "vue-i18n": "11.2.8"
+  },
+  "devDependencies": {
+    "@dcloudio/types": "3.4.8",
+    "@dcloudio/uni-cli-shared": "3.0.0-5030420261029002",
+    "@dcloudio/vite-plugin-uni": "3.0.0-5030420261029002",
+    "typescript": "5.9.2",
+    "vite": "5.2.8",
+    "vitest": "2.1.9",
+    "vue-tsc": "2.1.10"
+  }
+}
