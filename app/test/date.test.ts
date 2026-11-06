@@ -1,7 +1,9 @@
-﻿import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import {
   calendarCells,
+  calendarCountMap,
   formatDateLabel,
+  monthTitle,
   monthOf,
   shiftMonth,
   todayLocal,
@@ -34,6 +36,19 @@ describe('date utilities', () => {
     expect(october[0]).toEqual({ date: '2026-09-27', inMonth: false })
   })
 
+  it('maps calendar days to their record counts', () => {
+    expect(
+      calendarCountMap([
+        { date: '2026-11-06', count: 2 },
+        { date: '2026-11-20', count: 1 },
+      ]),
+    ).toEqual({ '2026-11-06': 2, '2026-11-20': 1 })
+  })
+
+  it('formats a readable month title', () => {
+    expect(monthTitle('2026-11')).toBe('2026年11月')
+    expect(monthTitle('2025-01')).toBe('2025年1月')
+  })
   it('formats dates with the year only when it differs from today', () => {
     expect(formatDateLabel('2026-11-06', '2026-11-06')).toBe('11月6日')
     expect(formatDateLabel('2025-12-31', '2026-11-06')).toBe('2025年12月31日')

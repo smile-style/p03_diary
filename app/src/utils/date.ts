@@ -1,4 +1,4 @@
-﻿function pad2(value: number): string {
+function pad2(value: number): string {
   return String(value).padStart(2, '0')
 }
 
@@ -10,6 +10,16 @@ export function monthOf(date: string): string {
   return date.slice(0, 7)
 }
 
+export function monthTitle(month: string): string {
+  const [year, monthNumber] = month.split('-')
+  return `${year}年${Number(monthNumber)}月`
+}
+
+export function calendarCountMap(
+  days: { date: string; count: number }[],
+): Record<string, number> {
+  return Object.fromEntries(days.map((day) => [day.date, day.count]))
+}
 export function shiftMonth(month: string, delta: number): string {
   const [yearText, monthText] = month.split('-')
   const date = new Date(Number(yearText), Number(monthText) - 1 + delta, 1)
