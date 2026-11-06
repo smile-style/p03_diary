@@ -308,6 +308,90 @@ describe('WechatChecker.submitImage', () => {
       checker.submitImage('https://example.com/image.jpg', 'openid-1'),
     )
   })
+
+  it('maps a network failure to the exact 503 AppError', async () => {
+    const checker = new WechatChecker(
+      fakeWechat(),
+      fakeFetch(async () => {
+        throw new Error('network unavailable')
+      }),
+    )
+
+    await expectCheckUnavailable(
+      checker.submitImage('https://example.com/image.jpg', 'openid-1'),
+    )
+  })
+
+  it('maps an abort/timeout failure to the exact 503 AppError', async () => {
+    const checker = new WechatChecker(
+      fakeWechat(),
+      fakeFetch(async () => {
+        throw new DOMException('The operation was aborted.', 'AbortError')
+      }),
+    )
+
+    await expectCheckUnavailable(
+      checker.submitImage('https://example.com/image.jpg', 'openid-1'),
+    )
+  })
+
+  it('maps a nonzero image errcode to the exact 503 AppError', async () => {
+    const checker = new WechatChecker(
+      fakeWechat(),
+      fakeFetch(async () =>
+        jsonResponse({ errcode: 40001, errmsg: 'invalid credential' }),
+      ),
+    )
+
+    await expectCheckUnavailable(
+      checker.submitImage('https://example.com/image.jpg', 'openid-1'),
+    )
+  })
+
+  it('maps malformed image JSON to the exact 503 AppError', async () => {
+    const checker = new WechatChecker(
+      fakeWechat(),
+      fakeFetch(async () =>
+        new Response('{', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      ),
+    )
+
+    await expectCheckUnavailable(
+      checker.submitImage('https://example.com/image.jpg', 'openid-1'),
+    )
+  })
+
+  it('maps an image non-2xx response to the exact 503 AppError', async () => {
+    const checker = new WechatChecker(
+      fakeWechat(),
+      fakeFetch(async () =>
+        jsonResponse(
+          { errcode: 0, trace_id: 'ignored-on-http-error' },
+          500,
+        ),
+      ),
+    )
+
+    await expectCheckUnavailable(
+      checker.submitImage('https://example.com/image.jpg', 'openid-1'),
+    )
+  })
+
+  it('maps an image access-token failure to the exact 503 AppError', async () => {
+    const wechat = fakeWechat()
+    wechat.getAccessToken.mockRejectedValueOnce(new Error('token unavailable'))
+    const checker = new WechatChecker(
+      wechat,
+      fakeFetch(async () => jsonResponse({})),
+    )
+
+    await expectCheckUnavailable(
+      checker.submitImage('https://example.com/image.jpg', 'openid-1'),
+    )
+  })
 })
 
 describe('null openid bypasses WeChat checks', () => {
