@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import type { Deps } from '../deps.js'
 import { notFound } from '../errors.js'
+import { listRecords } from '../queries/routes.js'
 import {
   deleteRecord,
   loadRecordViews,
@@ -22,6 +23,12 @@ async function requireRecordView(
 }
 
 export function registerRecordRoutes(app: FastifyInstance, deps: Deps): void {
+  app.get(
+    '/records',
+    { preHandler: app.requireUser },
+    async (request) => listRecords(deps, request.userId, request.query),
+  )
+
   app.post(
     '/records',
     { preHandler: app.requireUser },

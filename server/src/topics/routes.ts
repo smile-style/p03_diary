@@ -1,7 +1,61 @@
 import type { FastifyInstance } from 'fastify'
+import { sql } from 'kysely'
 import { z } from 'zod'
 import type { Deps } from '../deps.js'
 import { conflict, notFound } from '../errors.js'
+
+type TopicSummary = {
+  id: string
+  name: string
+  categoryId: string | null
+  recordCount: number
+  starredCount: number
+  lastRecordDate: string | null
+}
+
+type TopicSummaryRow = {
+  id: string
+  name: string
+  category_id: string | null
+  record_count: number
+  starred_count: number
+  last_record_date: string | null
+}
+
+async function loadTopicSummaries(
+  deps: Deps,
+  userId: string,
+): Promise<TopicSummary[]> {
+  const result = await sql<TopicSummaryRow>`
+    select
+      topic.id,
+      topic.name,
+      topic.category_id,
+      count(distinct record.id)::int as record_count,
+      count(excerpt.id)::int as starred_count,
+      max(record.record_date)::text as last_record_date
+    from topics as topic
+    left join records as record
+      on record.topic_id = topic.id
+      and record.user_id = ${userId}
+    left join excerpts as excerpt
+      on excerpt.record_id = record.id
+      and excerpt.user_id = ${userId}
+      and excerpt.starred = true
+    where topic.user_id = ${userId}
+    group by topic.id, topic.name, topic.category_id
+    order by max(record.record_date) desc nulls last, topic.name asc
+  `.execute(deps.db)
+
+  return result.rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    categoryId: row.category_id,
+    recordCount: row.record_count,
+    starredCount: row.starred_count,
+    lastRecordDate: row.last_record_date,
+  }))
+}
 
 const topicNameSchema = z
   .string()
@@ -57,6 +111,56 @@ async function assertCategoryOwned(
 }
 
 export function registerTopicRoutes(app: FastifyInstance, deps: Deps): void {
+  app.get('/topics', { preHandler: app.requireUser }, async (request) => {
+    const [categories, topics] = await Promise.all([
+      deps.db
+        .selectFrom('categories')
+        .select(['id', 'name', 'sort_order'])
+        .where('user_id', '=', request.userId)
+        .orderBy('sort_order')
+        .orderBy('created_at')
+        .execute(),
+      loadTopicSummaries(deps, request.userId),
+    ])
+
+    const topicsByCategory = new Map<string, TopicSummary[]>()
+    for (const topic of topics) {
+      if (topic.categoryId === null) {
+        continue
+      }
+      const group = topicsByCategory.get(topic.categoryId) ?? []
+      group.push(topic)
+      topicsByCategory.set(topic.categoryId, group)
+    }
+
+    return {
+      categories: categories.map((category) => ({
+        id: category.id,
+        name: category.name,
+        sortOrder: category.sort_order,
+        topics: topicsByCategory.get(category.id) ?? [],
+      })),
+      uncategorized: topics.filter((topic) => topic.categoryId === null),
+    }
+  })
+
+  app.get(
+    '/topics/:id',
+    { preHandler: app.requireUser },
+    async (request) => {
+      const { id } = z
+        .object({ id: z.string().uuid('Topic ID must be a UUID') })
+        .parse(request.params)
+      const topics = await loadTopicSummaries(deps, request.userId)
+      const topic = topics.find((item) => item.id === id)
+
+      if (!topic) {
+        throw notFound('Topic not found')
+      }
+      return topic
+    },
+  )
+
   app.post(
     '/topics',
     { preHandler: app.requireUser },
