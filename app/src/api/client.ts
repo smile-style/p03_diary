@@ -1,4 +1,4 @@
-﻿import { API_BASE_URL } from '../config'
+import { API_BASE_URL } from '../config'
 
 export class ApiError extends Error {
   code: string
@@ -76,7 +76,7 @@ function requestOnce<T>(
   return new Promise((resolve, reject) => {
     uni.request({
       url: buildUrl(path, options.query),
-      method,
+      method: method as any,
       data: options.body as any,
       header,
       success: (response) => {

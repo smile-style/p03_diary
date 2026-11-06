@@ -1,5 +1,11 @@
-<script lang="ts">
-export default {}
+﻿<script lang="ts">
+import { useAuthStore } from './stores/auth'
+
+export default {
+  onLaunch() {
+    void useAuthStore().ensureSession()
+  },
+}
 </script>
 
 <style>
