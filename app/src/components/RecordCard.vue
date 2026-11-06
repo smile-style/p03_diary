@@ -1,9 +1,11 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { computed } from 'vue'
 import type { RecordView } from '../api/types'
 import { formatDateLabel } from '../utils/date'
 
-const props = defineProps<{ record: RecordView }>()
+const props = withDefaults(defineProps<{ record: RecordView; readonly?: boolean }>(), {
+  readonly: false,
+})
 
 const dateLabel = computed(() => formatDateLabel(props.record.recordDate))
 const visibleExcerpts = computed(() => props.record.excerpts.slice(0, 2))
@@ -12,17 +14,19 @@ const visibleImages = computed(() =>
 )
 
 function openDetail() {
+  if (props.readonly) return
   uni.navigateTo({ url: `/pages/record/detail?id=${encodeURIComponent(props.record.id)}` })
 }
 
 function openTopic() {
-  if (!props.record.topic) return
+  if (props.readonly || !props.record.topic) return
   uni.navigateTo({
     url: `/pages/topic/detail?id=${encodeURIComponent(props.record.topic.id)}`,
   })
 }
 
 function openTag(name: string) {
+  if (props.readonly) return
   uni.navigateTo({ url: `/pages/tag/detail?name=${encodeURIComponent(name)}` })
 }
 
@@ -35,7 +39,7 @@ function previewImage(url: string) {
 </script>
 
 <template>
-  <view class="record-card" @click="openDetail">
+  <view class="record-card" :class="{ 'record-card--readonly': readonly }" @click="openDetail">
     <view class="record-card__meta">
       <text class="record-card__date">{{ dateLabel }}</text>
       <text v-if="record.topic" class="record-card__topic" @click.stop="openTopic">

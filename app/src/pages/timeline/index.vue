@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { onShow } from '@dcloudio/uni-app'
 import { computed, ref } from 'vue'
 import EmptyState from '../../components/EmptyState.vue'
@@ -18,13 +18,7 @@ const isInitialLoading = computed(
 onShow(async () => {
   await auth.ensureSession()
   if (auth.baseMessage) return
-
-  const expired =
-    timeline.lastLoadedAt > 0 &&
-    Date.now() - timeline.lastLoadedAt > 50 * 60 * 1000
-  if (timeline.lastLoadedAt === 0 || expired) {
-    await timeline.reset()
-  }
+  await timeline.reset(timeline.filter)
 })
 
 function submitSearch() {
