@@ -1,17 +1,7 @@
-FROM node:22-alpine AS build
-WORKDIR /app
-RUN corepack enable && corepack prepare pnpm@10.34.9 --activate
-COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
-COPY tsconfig.json ./
-COPY src ./src
-RUN pnpm build
-
-FROM node:22-alpine AS runtime
+FROM node:22-alpine
 WORKDIR /app
 ENV NODE_ENV=production
-RUN corepack enable && corepack prepare pnpm@10.34.9 --activate
-COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --prod --frozen-lockfile
-COPY --from=build /app/dist ./dist
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund
+COPY dist ./dist
 CMD ["node","dist/server.js"]

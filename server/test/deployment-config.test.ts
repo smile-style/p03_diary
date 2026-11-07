@@ -57,19 +57,6 @@ function directChildKeys(block: string, indent: number): string[] {
     .filter((key): key is string => Boolean(key))
 }
 
-function dockerStage(dockerfile: string, stageName: string): string {
-  const lines = dockerfile.split('\n')
-  const expectedFrom = `from node:22-alpine as ${stageName.toLowerCase()}`
-  const start = lines.findIndex(
-    (line) => line.trim().replace(/\s+/g, ' ').toLowerCase() === expectedFrom,
-  )
-  if (start === -1) throw new Error(`Missing node:22-alpine build stage ${stageName}`)
-
-  const nextStage = lines.findIndex(
-    (line, index) => index > start && /^\s*FROM\s+/i.test(line),
-  )
-  return lines.slice(start, nextStage === -1 ? lines.length : nextStage).join('\n')
-}
 
 function parseEnv(source: string): Map<string, string> {
   const values = new Map<string, string>()
@@ -84,22 +71,15 @@ function parseEnv(source: string): Map<string, string> {
 }
 
 describe('Task 8 deployment configuration', () => {
-  it('builds and runs the API from a multi-stage Node 22 Alpine image', () => {
+  it('runs the prebuilt API from a Node 22 Alpine image', () => {
     const dockerfile = readRepoFile('server/Dockerfile')
     const fromLines = dockerfile.split('\n').filter((line) => /^\s*FROM\s+/i.test(line))
 
-    expect(fromLines.length).toBeGreaterThanOrEqual(2)
-    expect(fromLines.every((line) => /node:22-alpine/i.test(line))).toBe(true)
-
-    const buildStage = dockerStage(dockerfile, 'build')
-    expect(buildStage).toContain('COPY package.json pnpm-lock.yaml ./')
-    expect(buildStage).toMatch(/pnpm install[^\n]*--frozen-lockfile/)
-    expect(buildStage).toMatch(/pnpm build/)
-
-    const runtimeStage = dockerStage(dockerfile, 'runtime')
-    expect(runtimeStage).toMatch(/pnpm install[^\n]*--prod[^\n]*--frozen-lockfile/)
-    expect(runtimeStage).not.toMatch(/pnpm build/)
-    expect(runtimeStage).toContain('COPY --from=build /app/dist ./dist')
+    expect(fromLines).toHaveLength(1)
+    expect(fromLines[0]).toMatch(/node:22-alpine/i)
+    expect(dockerfile).toContain('COPY package.json package-lock.json ./')
+    expect(dockerfile).toMatch(/npm ci[^\n]*--omit=dev[^\n]*--ignore-scripts[^\n]*--no-audit[^\n]*--no-fund/)
+    expect(dockerfile).toContain('COPY dist ./dist')
 
     const cmdLines = dockerfile.split('\n').filter((line) => /^\s*CMD\s+/.test(line))
     expect(cmdLines).toHaveLength(1)
