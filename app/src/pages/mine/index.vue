@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onShow } from '@dcloudio/uni-app'
-import { onMounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
 import {
   createCategory,
   deleteCategory,
@@ -17,7 +17,19 @@ const categories = ref<Category[]>([])
 const loading = ref(false)
 const busy = ref(false)
 const error = ref<string | null>(null)
-const version = manifest.versionName
+type UpdateState =
+  | { kind: 'idle' }
+  | { kind: 'checking' }
+  | { kind: 'up-to-date' }
+  | { kind: 'available'; version: string; notes: string | null }
+  | { kind: 'downloading'; percent: number }
+  | { kind: 'downloaded'; version: string }
+  | { kind: 'error'; message: string }
+
+const updateState = ref<UpdateState>({ kind: 'idle' })
+const appVersion = ref(manifest.versionName)
+const hasBridge = ref(false)
+let unsubscribe: (() => void) | null = null
 let requestVersion = 0
 const dataPath = ref('桌面版可查看')
 
@@ -26,10 +38,58 @@ function openDataFolder(): void {
   if (bridge?.openDataFolder) bridge.openDataFolder()
 }
 
-onMounted(() => {
+onMounted(async () => {
   const bridge = (globalThis as any).wxDailyDesktop
-  if (bridge?.dataPath) dataPath.value = bridge.dataPath
+  if (!bridge) return
+  hasBridge.value = true
+  if (bridge.dataPath) dataPath.value = bridge.dataPath
+  if (bridge.version) appVersion.value = bridge.version
+
+  // 顺序不能反：先拉一次已缓存的状态（启动静默检查可能早已结束），再订阅后续推送。
+  // 反过来会在两次调用之间漏掉状态。
+  if (bridge.update?.getState) {
+    try {
+      const cached = (await bridge.update.getState()) as UpdateState | undefined
+      if (cached) updateState.value = cached
+    } catch {
+      // 拿不到缓存就保持 idle，不阻断页面
+    }
+  }
+  if (bridge.update?.onState) {
+    unsubscribe = bridge.update.onState((state: UpdateState) => {
+      updateState.value = state
+    })
+  }
 })
+
+onUnmounted(() => {
+  unsubscribe?.()
+})
+
+function bridgeCall(name: 'check' | 'download', fallbackMessage: string): void {
+  const bridge = (globalThis as any).wxDailyDesktop
+  const fn = bridge?.update?.[name]
+  if (!fn) {
+    updateState.value = { kind: 'error', message: fallbackMessage }
+    return
+  }
+  updateState.value = name === 'check' ? { kind: 'checking' } : updateState.value
+  void Promise.resolve(fn())
+    .then((result: UpdateState | undefined) => {
+      if (result) updateState.value = result
+    })
+    .catch((error: unknown) => {
+      updateState.value = {
+        kind: 'error',
+        message: error instanceof Error ? error.message : '更新失败',
+      }
+    })
+}
+
+function applyUpdate(): void {
+  const bridge = (globalThis as any).wxDailyDesktop
+  bridge?.update?.install?.()
+}
 
 onShow(() => {
   void loadCategories()
@@ -259,6 +319,45 @@ function clearLocalCache(): void {
         </view>
       </view>
 
+      <view class="section-card update-card">
+        <view class="update-card__header">
+          <text class="update-card__title">应用更新</text>
+          <text class="update-card__version">v{{ appVersion }}</text>
+        </view>
+
+        <view v-if="!hasBridge" class="update-card__state">
+          <text class="update-card__hint">桌面版可用</text>
+        </view>
+
+        <template v-else>
+          <view v-if="updateState.kind === 'idle'" class="update-card__actions">
+            <button class="update-button" @click="bridgeCall('check', '无法检查更新')">检查更新</button>
+          </view>
+          <view v-else-if="updateState.kind === 'checking'" class="update-card__state">
+            <text class="update-card__hint">正在检查…</text>
+          </view>
+          <view v-else-if="updateState.kind === 'up-to-date'" class="update-card__state">
+            <text class="update-card__hint">已是最新版本</text>
+          </view>
+          <view v-else-if="updateState.kind === 'available'" class="update-card__state">
+            <text class="update-card__hint">发现新版本 v{{ updateState.version }}</text>
+            <text v-if="updateState.notes" class="update-card__notes">{{ updateState.notes }}</text>
+            <button class="update-button" @click="bridgeCall('download', '无法下载更新')">立即更新</button>
+          </view>
+          <view v-else-if="updateState.kind === 'downloading'" class="update-card__state">
+            <text class="update-card__hint">下载中 {{ updateState.percent }}%</text>
+          </view>
+          <view v-else-if="updateState.kind === 'downloaded'" class="update-card__state">
+            <text class="update-card__hint">下载完成，重启后生效</text>
+            <button class="update-button" @click="applyUpdate">立即重启</button>
+          </view>
+          <view v-else-if="updateState.kind === 'error'" class="update-card__state">
+            <text class="update-card__error">{{ updateState.message }}</text>
+            <button class="update-button" @click="bridgeCall('check', '无法检查更新')">重试</button>
+          </view>
+        </template>
+      </view>
+
       <view class="section-card settings-card">
         <view class="setting-item" @click="openDataFolder">
           <view>
@@ -278,7 +377,7 @@ function clearLocalCache(): void {
         <view class="setting-divider" />
         <view class="setting-item setting-item--about">
           <text class="setting-item__title">关于</text>
-          <text class="setting-item__version">版本 {{ version }}</text>
+          <text class="setting-item__version">版本 {{ appVersion }}</text>
         </view>
       </view>
 
@@ -466,6 +565,63 @@ function clearLocalCache(): void {
 
 .text-button[disabled] {
   opacity: 0.45;
+}
+
+.update-card {
+  padding: 0;
+}
+
+.update-card__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 28rpx 28rpx 12rpx;
+}
+
+.update-card__title {
+  color: var(--color-text);
+  font-size: 30rpx;
+  font-weight: 600;
+}
+
+.update-card__version {
+  color: var(--color-muted);
+  font-size: 24rpx;
+}
+
+.update-card__state,
+.update-card__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+  padding: 8rpx 28rpx 28rpx;
+}
+
+.update-card__hint {
+  color: var(--color-muted);
+  font-size: 24rpx;
+}
+
+.update-card__notes {
+  color: var(--color-muted);
+  font-size: 22rpx;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.update-card__error {
+  color: #d94b4b;
+  font-size: 24rpx;
+}
+
+.update-button {
+  align-self: flex-start;
+  padding: 0 36rpx;
+  border-radius: 32rpx;
+  background: var(--color-primary);
+  color: #ffffff;
+  font-size: 24rpx;
+  line-height: 64rpx;
 }
 
 .settings-card {
