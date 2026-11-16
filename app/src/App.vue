@@ -16,6 +16,8 @@ page {
   --color-star: #f0a020;
   --color-text: #202020;
   --color-bg: #f7f7f7;
+  --color-timeline-axis: #d0021b;
+  --color-timeline-line: #e6e6e6;
   background: var(--color-bg);
   color: var(--color-text);
   font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
