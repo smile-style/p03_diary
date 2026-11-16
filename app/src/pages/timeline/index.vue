@@ -1,33 +1,120 @@
 <script setup lang="ts">
 import { onShow } from '@dcloudio/uni-app'
 import { computed, ref } from 'vue'
+import { getYearMonths, getYears } from '../../api/queries'
+import type { RecordFilter } from '../../api/types'
 import EmptyState from '../../components/EmptyState.vue'
 import RecordCard from '../../components/RecordCard.vue'
+import YearAxis from '../../components/YearAxis.vue'
 import { useAuthStore } from '../../stores/auth'
 import { useTimelineStore } from '../../stores/timeline'
 import { parseSearchInput } from '../../utils/search'
+import { groupByMonth } from '../../utils/timeline-groups'
 
 const auth = useAuthStore()
 const timeline = useTimelineStore()
 const searchText = ref('')
+const years = ref<{ year: string; count: number }[]>([])
+const selectedYear = ref<string | null>(null)
+const activeMonth = ref<string | null>(null)
+const months = ref<{ month: string; count: number }[]>([])
 
 const isInitialLoading = computed(
   () => timeline.loading && timeline.items.length === 0,
 )
+const groups = computed(() => groupByMonth(timeline.items))
 
 onShow(async () => {
   await auth.ensureSession()
   if (auth.baseMessage) return
-  await timeline.reset(timeline.filter)
+  await loadYears()
+  await timeline.reset(currentFilter())
 })
 
+async function loadYears(): Promise<void> {
+  try {
+    const result = await getYears()
+    years.value = result.items
+    if (!selectedYear.value && result.items.length > 0) {
+      selectedYear.value = result.items[0]!.year
+    }
+  } catch {
+    years.value = []
+  }
+  await loadMonths()
+}
+
+async function loadMonths(): Promise<void> {
+  if (!selectedYear.value) {
+    months.value = []
+    return
+  }
+  try {
+    const result = await getYearMonths(selectedYear.value)
+    months.value = result.items
+  } catch {
+    months.value = []
+  }
+}
+
+// 当前生效的筛选条件。date / month / year 三者只取一个，后端也是这个优先级。
+function currentFilter(): RecordFilter {
+  const filter = { ...timeline.filter }
+  if (activeMonth.value) {
+    return { ...filter, month: activeMonth.value, year: undefined, date: undefined }
+  }
+  if (selectedYear.value) {
+    return { ...filter, year: selectedYear.value, month: undefined, date: undefined }
+  }
+  return { ...filter, year: undefined, month: undefined, date: undefined }
+}
+
+// 传 null 表示「全部年份」
+async function selectYear(year: string | null): Promise<void> {
+  selectedYear.value = year
+  activeMonth.value = null
+  await loadMonths()
+  await timeline.reset(currentFilter())
+}
+
+async function toggleMonth(month: string): Promise<void> {
+  if (!selectedYear.value) return
+  // 点同一个月标题再次取消筛选
+  if (activeMonth.value === month) {
+    activeMonth.value = null
+    await timeline.reset({ ...currentFilterNoMonth() })
+    return
+  }
+  activeMonth.value = month
+  await timeline.reset({
+    ...timeline.filter,
+    month,
+    year: undefined,
+    date: undefined,
+  })
+}
+
+function currentFilterNoMonth(): RecordFilter {
+  const filter = { ...timeline.filter }
+  delete filter.month
+  delete filter.date
+  if (selectedYear.value) filter.year = selectedYear.value
+  return filter
+}
+
+// 月份标题上的条数来自服务端聚合，不是已加载条数
+function monthCount(month: string): number {
+  return months.value.find((item) => item.month === month)?.count ?? 0
+}
+
 function submitSearch() {
-  void timeline.reset(parseSearchInput(searchText.value))
+  const parsed = parseSearchInput(searchText.value)
+  void timeline.reset({ ...parsed, ...currentFilter() })
 }
 
 function clearSearch() {
   searchText.value = ''
-  void timeline.reset({})
+  void timeline.reset(currentFilter())
 }
 
 function retryLogin() {
@@ -36,7 +123,7 @@ function retryLogin() {
 }
 
 function retryLoad() {
-  void timeline.reset()
+  void timeline.reset(currentFilter())
 }
 
 function createRecord() {
@@ -68,6 +155,12 @@ function createRecord() {
         <text v-if="searchText" class="search-bar__clear" @click="clearSearch">清除</text>
       </view>
 
+      <YearAxis
+        :items="years"
+        :selected="selectedYear"
+        @select="selectYear"
+      />
+
       <scroll-view
         class="timeline-scroll"
         scroll-y
@@ -89,11 +182,20 @@ function createRecord() {
         />
 
         <template v-else>
-          <RecordCard
-            v-for="record in timeline.items"
-            :key="record.id"
-            :record="record"
-          />
+          <view v-for="group in groups" :key="group.month" class="month-group">
+            <view class="month-group__header" @click="toggleMonth(group.month)">
+              <text class="month-group__title">{{ group.label }}</text>
+              <text
+                v-if="selectedYear && !activeMonth"
+                class="month-group__count"
+              >{{ monthCount(group.month) }} 条</text>
+            </view>
+            <RecordCard
+              v-for="record in group.records"
+              :key="record.id"
+              :record="record"
+            />
+          </view>
           <view v-if="timeline.loading" class="loading-more">
             <text>正在加载更多…</text>
           </view>
@@ -138,7 +240,7 @@ function createRecord() {
 }
 
 .timeline-scroll {
-  height: calc(100vh - 113rpx);
+  height: calc(100vh - 233rpx);
   padding-bottom: 160rpx;
 }
 
@@ -176,6 +278,24 @@ function createRecord() {
   color: #ffffff;
   font-size: 26rpx;
   line-height: 72rpx;
+}
+
+.month-group__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 28rpx 28rpx 8rpx;
+}
+
+.month-group__title {
+  color: var(--color-text);
+  font-size: 28rpx;
+  font-weight: 600;
+}
+
+.month-group__count {
+  color: var(--color-muted);
+  font-size: 22rpx;
 }
 
 .loading-more,
