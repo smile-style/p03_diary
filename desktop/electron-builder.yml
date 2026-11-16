@@ -17,3 +17,12 @@ nsis:
   perMachine: false
   allowToChangeInstallationDirectory: true
   deleteAppDataOnUninstall: false
+publish:
+  provider: github
+  owner: smile-style
+  repo: p03_diary
+# 待确认：仓库需可匿名读取 Release 资产。
+# 若仍为私有，改用：
+# publish:
+#   provider: generic
+#   url: https://<你的域名>/wx-daily/

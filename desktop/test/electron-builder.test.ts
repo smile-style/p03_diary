@@ -38,4 +38,30 @@ describe('Windows 安装包配置', () => {
 
     expect(yaml).toContain('artifactName: wx-daily-setup-${version}.exe')
   })
+  it('desktop 与 app 的版本号一致', async () => {
+    const pkg = JSON.parse(await readFile(join(process.cwd(), 'package.json'), 'utf8')) as {
+      version: string
+    }
+    const appPkg = JSON.parse(
+      await readFile(join(process.cwd(), '..', 'app', 'package.json'), 'utf8'),
+    ) as { version: string }
+    const manifest = JSON.parse(
+      await readFile(join(process.cwd(), '..', 'app', 'src', 'manifest.json'), 'utf8'),
+    ) as { versionName: string; versionCode: string }
+
+    expect(pkg.version).toBe('0.2.0')
+    expect(appPkg.version).toBe(pkg.version)
+    expect(manifest.versionName).toBe(pkg.version)
+    expect(manifest.versionCode).toBe('200')
+  })
+
+  it('配置了 GitHub Releases 发布渠道', async () => {
+    const yaml = await readFile(join(process.cwd(), 'electron-builder.yml'), 'utf8')
+
+    expect(yaml).toContain('publish:')
+    expect(yaml).toContain('provider: github')
+    expect(yaml).toContain('owner: smile-style')
+    expect(yaml).toContain('repo: p03_diary')
+  })
+
 })

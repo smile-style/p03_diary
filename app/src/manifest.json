@@ -2,8 +2,8 @@
   "name": "生活记录",
   "appid": "__UNI__WXDAILY",
   "description": "记录生活里的想法与摘抄",
-  "versionName": "0.1.0",
-  "versionCode": "100",
+  "versionName": "0.2.0",
+  "versionCode": "200",
   "transformPx": false,
   "mp-weixin": {
     "appid": "wx88af793357981870",
