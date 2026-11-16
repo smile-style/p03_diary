@@ -1030,3 +1030,193 @@ describe('GET /year-months', () => {
     expect(res.json()).toEqual({ items: [] })
   })
 })
+describe('GET /records?year=', () => {
+  async function seed(token: string, app: FastifyInstance) {
+    for (const recordDate of ['2024-12-31', '2025-01-01', '2025-06-15', '2026-01-01']) {
+      await app.inject({
+        method: 'POST',
+        url: '/records',
+        headers: authHeader(token),
+        payload: { topicId: null, recordDate, body: recordDate, links: [], excerpts: [], imageIds: [] },
+      })
+    }
+  }
+
+  it('只返回该年的记录，且不跨年泄漏', async () => {
+    const { app, deps } = await createTestApp()
+    apps.push(app)
+    const token = await loginAs(app, deps)
+    await seed(token, app)
+
+    const res = await app.inject({
+      method: 'GET', url: '/records?year=2025', headers: authHeader(token),
+    })
+    const dates = res.json().items.map((item: { recordDate: string }) => item.recordDate)
+
+    expect(dates).toEqual(['2025-06-15', '2025-01-01'])
+  })
+
+  it('同一年的记录超过一页时翻页不重不漏', async () => {
+    const { app, deps } = await createTestApp()
+    apps.push(app)
+    const token = await loginAs(app, deps)
+
+    for (let day = 1; day <= 5; day += 1) {
+      await app.inject({
+        method: 'POST',
+        url: '/records',
+        headers: authHeader(token),
+        payload: {
+          topicId: null,
+          recordDate: `2025-04-0${day}`,
+          body: `第 ${day} 条`,
+          links: [], excerpts: [], imageIds: [],
+        },
+      })
+    }
+    await app.inject({
+      method: 'POST',
+      url: '/records',
+      headers: authHeader(token),
+      payload: { topicId: null, recordDate: '2024-04-05', body: '去年', links: [], excerpts: [], imageIds: [] },
+    })
+
+    const seen: string[] = []
+    let cursor: string | null = null
+    for (let page = 0; page < 3; page += 1) {
+      const res = await app.inject({
+        method: 'GET',
+        url: `/records?year=2025&limit=2${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`,
+        headers: authHeader(token),
+      })
+      const body = res.json() as { items: { id: string }[]; nextCursor: string | null }
+      seen.push(...body.items.map((item) => item.id))
+      if (!body.nextCursor) break
+      cursor = body.nextCursor
+    }
+
+    expect(seen).toHaveLength(5)
+    expect(new Set(seen).size).toBe(5)
+  })
+
+  it('year 与 date 同时出现时以 date 为准', async () => {
+    const { app, deps } = await createTestApp()
+    apps.push(app)
+    const token = await loginAs(app, deps)
+    await seed(token, app)
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/records?year=2025&date=2024-12-31',
+      headers: authHeader(token),
+    })
+    const dates = res.json().items.map((item: { recordDate: string }) => item.recordDate)
+
+    expect(dates).toEqual(['2024-12-31'])
+  })
+
+  it('year 格式不合法时返回 400', async () => {
+    const { app, deps } = await createTestApp()
+    apps.push(app)
+    const token = await loginAs(app, deps)
+
+    const res = await app.inject({
+      method: 'GET', url: '/records?year=25', headers: authHeader(token),
+    })
+
+    expect(res.statusCode).toBe(400)
+    expect(res.json().error.code).toBe('VALIDATION')
+  })
+
+  it('只返回该月的记录', async () => {
+    const { app, deps } = await createTestApp()
+    apps.push(app)
+    const token = await loginAs(app, deps)
+    await seed(token, app)
+
+    const res = await app.inject({
+      method: 'GET', url: '/records?month=2025-06', headers: authHeader(token),
+    })
+    const dates = res.json().items.map((item: { recordDate: string }) => item.recordDate)
+
+    expect(dates).toEqual(['2025-06-15'])
+  })
+
+  it('12 月不会跨到下一年的 1 月', async () => {
+    const { app, deps } = await createTestApp()
+    apps.push(app)
+    const token = await loginAs(app, deps)
+    await seed(token, app)
+
+    const res = await app.inject({
+      method: 'GET', url: '/records?month=2024-12', headers: authHeader(token),
+    })
+    const dates = res.json().items.map((item: { recordDate: string }) => item.recordDate)
+
+    expect(dates).toEqual(['2024-12-31'])
+  })
+
+  it('month 比 year 更具体：同时出现时以 month 为准', async () => {
+    const { app, deps } = await createTestApp()
+    apps.push(app)
+    const token = await loginAs(app, deps)
+    await seed(token, app)
+
+    const res = await app.inject({
+      method: 'GET', url: '/records?year=2025&month=2026-01', headers: authHeader(token),
+    })
+    const dates = res.json().items.map((item: { recordDate: string }) => item.recordDate)
+
+    expect(dates).toEqual(['2026-01-01'])
+  })
+
+  it('同一月份记录超过一页时翻页不重不漏', async () => {
+    const { app, deps } = await createTestApp()
+    apps.push(app)
+    const token = await loginAs(app, deps)
+
+    for (let day = 1; day <= 5; day += 1) {
+      await app.inject({
+        method: 'POST',
+        url: '/records',
+        headers: authHeader(token),
+        payload: {
+          topicId: null,
+          recordDate: `2025-07-0${day}`,
+          body: `第 ${day} 条`,
+          links: [], excerpts: [], imageIds: [],
+        },
+      })
+    }
+
+    const seen: string[] = []
+    let cursor: string | null = null
+    for (let page = 0; page < 3; page += 1) {
+      const res = await app.inject({
+        method: 'GET',
+        url: `/records?month=2025-07&limit=2${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`,
+        headers: authHeader(token),
+      })
+      const body = res.json() as { items: { id: string }[]; nextCursor: string | null }
+      seen.push(...body.items.map((item) => item.id))
+      if (!body.nextCursor) break
+      cursor = body.nextCursor
+    }
+
+    expect(seen).toHaveLength(5)
+    expect(new Set(seen).size).toBe(5)
+  })
+
+  it('month 格式不合法时返回 400', async () => {
+    const { app, deps } = await createTestApp()
+    apps.push(app)
+    const token = await loginAs(app, deps)
+
+    for (const month of ['2025-6', '2025-13-01', 'abc']) {
+      const res = await app.inject({
+        method: 'GET', url: `/records?month=${month}`, headers: authHeader(token),
+      })
+      expect(res.statusCode).toBe(400)
+    }
+  })
+})

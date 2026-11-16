@@ -71,6 +71,14 @@ const limitSchema = z.coerce
 
 const recordQuerySchema = z.object({
   date: dateSchema.optional(),
+  year: z
+    .string()
+    .regex(/^\d{4}$/, 'Year must be four digits')
+    .optional(),
+  month: z
+    .string()
+    .regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'Month must be YYYY-MM')
+    .optional(),
   topicId: uuidSchema.optional(),
   tag: z.string().optional(),
   q: z
@@ -181,6 +189,22 @@ export async function listRecords(
 
   if (query.date !== undefined) {
     idsQuery = idsQuery.where('record.record_date', '=', query.date)
+  }
+  if (query.date === undefined && query.month !== undefined) {
+    const [yearPart, monthPart] = query.month.split('-')
+    const nextMonth =
+      Number(monthPart) === 12
+        ? `${Number(yearPart) + 1}-01`
+        : `${yearPart}-${String(Number(monthPart) + 1).padStart(2, '0')}`
+
+    idsQuery = idsQuery
+      .where('record.record_date', '>=', `${query.month}-01`)
+      .where('record.record_date', '<', `${nextMonth}-01`)
+  } else if (query.date === undefined && query.year !== undefined) {
+    const nextYear = String(Number(query.year) + 1).padStart(4, '0')
+    idsQuery = idsQuery
+      .where('record.record_date', '>=', `${query.year}-01-01`)
+      .where('record.record_date', '<', `${nextYear}-01-01`)
   }
   if (query.topicId !== undefined) {
     idsQuery = idsQuery.where('record.topic_id', '=', query.topicId)
