@@ -294,6 +294,45 @@ export function registerQueryRoutes(app: FastifyInstance, deps: Deps): void {
     },
   )
 
+  app.get('/years', { preHandler: app.requireUser }, async (request) => {
+    const rows = await deps.db
+      .selectFrom('records')
+      .select([
+        sql<string>`substr(record_date, 1, 4)`.as('year'),
+        sql<number>`cast(count(*) as integer)`.as('count'),
+      ])
+      .where('user_id', '=', request.userId)
+      .groupBy(sql`substr(record_date, 1, 4)`)
+      .orderBy(sql`substr(record_date, 1, 4)`, 'desc')
+      .execute()
+
+    return {
+      items: rows.map((row) => ({ year: row.year, count: Number(row.count) })),
+    }
+  })
+
+  app.get('/year-months', { preHandler: app.requireUser }, async (request) => {
+    const { year } = z
+      .object({ year: z.string().regex(/^\d{4}$/, 'Year must be four digits') })
+      .parse(request.query)
+
+    const rows = await deps.db
+      .selectFrom('records')
+      .select([
+        sql<string>`substr(record_date, 1, 7)`.as('month'),
+        sql<number>`cast(count(*) as integer)`.as('count'),
+      ])
+      .where('user_id', '=', request.userId)
+      .where('record_date', '>=', `${year}-01-01`)
+      .where('record_date', '<', `${String(Number(year) + 1).padStart(4, '0')}-01-01`)
+      .groupBy(sql`substr(record_date, 1, 7)`)
+      .orderBy(sql`substr(record_date, 1, 7)`, 'desc')
+      .execute()
+
+    return {
+      items: rows.map((row) => ({ month: row.month, count: Number(row.count) })),
+    }
+  })
   app.get('/tags', { preHandler: app.requireUser }, async (request) => {
     const rows = await deps.db
       .selectFrom('record_tags as record_tag')

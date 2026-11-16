@@ -899,3 +899,134 @@ describe('query routes', () => {
     expect(underscore.json().items).toHaveLength(1)
   })
 })
+
+describe('GET /years', () => {
+  it('按年聚合记录数并按年份倒序返回', async () => {
+    const { app, deps } = await createTestApp()
+    apps.push(app)
+    const token = await loginAs(app, deps)
+
+    const dates = ['2024-03-01', '2024-11-20', '2025-01-05', '2026-05-11', '2026-05-12']
+    for (const recordDate of dates) {
+      await app.inject({
+        method: 'POST',
+        url: '/records',
+        headers: authHeader(token),
+        payload: { topicId: null, recordDate, body: 'x', links: [], excerpts: [], imageIds: [] },
+      })
+    }
+
+    const res = await app.inject({ method: 'GET', url: '/years', headers: authHeader(token) })
+
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual({
+      items: [
+        { year: '2026', count: 2 },
+        { year: '2025', count: 1 },
+        { year: '2024', count: 2 },
+      ],
+    })
+  })
+
+  it('没有记录时返回空数组', async () => {
+    const { app, deps } = await createTestApp()
+    apps.push(app)
+    const token = await loginAs(app, deps)
+
+    const res = await app.inject({ method: 'GET', url: '/years', headers: authHeader(token) })
+
+    expect(res.json()).toEqual({ items: [] })
+  })
+
+  it('不返回其他用户的年份', async () => {
+    const { app, deps } = await createTestApp()
+    apps.push(app)
+    const tokenA = await loginAs(app, deps, 'A')
+    const tokenB = await loginAs(app, deps, 'B')
+
+    await app.inject({
+      method: 'POST',
+      url: '/records',
+      headers: authHeader(tokenB),
+      payload: { topicId: null, recordDate: '2019-01-01', body: 'B 的记录', links: [], excerpts: [], imageIds: [] },
+    })
+
+    const res = await app.inject({ method: 'GET', url: '/years', headers: authHeader(tokenA) })
+    expect(res.json()).toEqual({ items: [] })
+  })
+})
+
+describe('GET /year-months', () => {
+  it('返回该年的月份与记录数，按月份倒序', async () => {
+    const { app, deps } = await createTestApp()
+    apps.push(app)
+    const token = await loginAs(app, deps)
+
+    const dates = ['2026-05-11', '2026-05-12', '2026-03-01', '2025-12-31']
+    for (const recordDate of dates) {
+      await app.inject({
+        method: 'POST',
+        url: '/records',
+        headers: authHeader(token),
+        payload: { topicId: null, recordDate, body: 'x', links: [], excerpts: [], imageIds: [] },
+      })
+    }
+
+    const res = await app.inject({
+      method: 'GET', url: '/year-months?year=2026', headers: authHeader(token),
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual({
+      items: [
+        { month: '2026-05', count: 2 },
+        { month: '2026-03', count: 1 },
+      ],
+    })
+  })
+
+  it('不同年份的同月份不会混在一起', async () => {
+    const { app, deps } = await createTestApp()
+    apps.push(app)
+    const token = await loginAs(app, deps)
+
+    for (const recordDate of ['2025-05-01', '2026-05-01']) {
+      await app.inject({
+        method: 'POST',
+        url: '/records',
+        headers: authHeader(token),
+        payload: { topicId: null, recordDate, body: 'x', links: [], excerpts: [], imageIds: [] },
+      })
+    }
+
+    const res = await app.inject({
+      method: 'GET', url: '/year-months?year=2026', headers: authHeader(token),
+    })
+
+    expect(res.json()).toEqual({ items: [{ month: '2026-05', count: 1 }] })
+  })
+
+  it('year 缺失或格式非法时返回 400', async () => {
+    const { app, deps } = await createTestApp()
+    apps.push(app)
+    const token = await loginAs(app, deps)
+
+    for (const url of ['/year-months', '/year-months?year=26', '/year-months?year=abcd']) {
+      const res = await app.inject({ method: 'GET', url, headers: authHeader(token) })
+      expect(res.statusCode).toBe(400)
+      expect(res.json().error.code).toBe('VALIDATION')
+    }
+  })
+
+  it('该年没有记录时返回空数组', async () => {
+    const { app, deps } = await createTestApp()
+    apps.push(app)
+    const token = await loginAs(app, deps)
+
+    const res = await app.inject({
+      method: 'GET', url: '/year-months?year=2026', headers: authHeader(token),
+    })
+
+    expect(res.json()).toEqual({ items: [] })
+  })
+})
