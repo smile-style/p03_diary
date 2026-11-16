@@ -1,4 +1,5 @@
 import multipart from '@fastify/multipart'
+import fastifyStatic from '@fastify/static'
 import Fastify, {
   type FastifyInstance,
   type FastifyServerOptions,
@@ -97,11 +98,6 @@ export async function buildApp(
     })
   })
 
-  app.setNotFoundHandler((_request, reply) => {
-    return reply.status(404).send({
-      error: { code: 'NOT_FOUND', message: '接口不存在' },
-    })
-  })
 
   await app.register(multipart, {
     throwFileSizeLimit: true,
@@ -124,6 +120,16 @@ export async function buildApp(
   registerImageRoutes(app, deps)
   registerRecordRoutes(app, deps)
   registerQueryRoutes(app, deps)
+
+  if (deps.config.webRoot !== null) {
+    await app.register(fastifyStatic, { root: deps.config.webRoot })
+  }
+
+  app.setNotFoundHandler((_request, reply) => {
+    return reply.status(404).send({
+      error: { code: 'NOT_FOUND', message: '接口不存在' },
+    })
+  })
 
   return app
 }
