@@ -6,8 +6,6 @@ import { AppError, notFound, validation } from '../errors.js'
 import { signFileUrl, verifyFileUrl } from './signed-url.js'
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024
-const CALLBACK_URL_TTL_SECONDS = 24 * 60 * 60
-
 const EXTENSIONS_BY_MIME = new Map([
   ['image/jpeg', 'jpg'],
   ['image/png', 'png'],
@@ -81,25 +79,9 @@ export function registerImageRoutes(app: FastifyInstance, deps: Deps): void {
       }
 
       const storageKey = `${request.userId}/${randomUUID()}.${extension}`
-      const identity = await deps.db
-        .selectFrom('user_identities')
-        .select('subject')
-        .where('user_id', '=', request.userId)
-        .where('provider', '=', 'wechat')
-        .limit(1)
-        .executeTakeFirst()
-      const openid = identity?.subject ?? null
-
       try {
         await deps.storage.put(storageKey, data)
 
-        const callbackUrl = signFileUrl(
-          storageKey,
-          deps.config.fileUrlSecret,
-          deps.config.publicBaseUrl,
-          CALLBACK_URL_TTL_SECONDS,
-        )
-        const checkResult = await deps.checker.submitImage(callbackUrl, openid)
         const row = await deps.db
           .insertInto('images')
           .values({
@@ -107,9 +89,8 @@ export function registerImageRoutes(app: FastifyInstance, deps: Deps): void {
             record_id: null,
             storage_key: storageKey,
             mime: file.mimetype,
-            status: checkResult.status,
-            trace_id:
-              checkResult.status === 'pending' ? checkResult.traceId : null,
+            status: 'ok',
+            trace_id: null,
           })
           .returning(['id', 'storage_key', 'status'])
           .executeTakeFirstOrThrow()

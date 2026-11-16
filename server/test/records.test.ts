@@ -1,9 +1,7 @@
 import type { FastifyInstance, InjectOptions } from 'fastify'
 import { afterEach, describe, expect, it } from 'vitest'
-import type { ContentChecker } from '../src/moderation/checker.js'
-import { AppError } from '../src/errors.js'
 import { loadRecordViews } from '../src/records/service.js'
-import { authHeader, createTestApp, login } from './helpers.js'
+import { authHeader, createTestApp, loginAs } from './helpers.js'
 
 const apps: FastifyInstance[] = []
 
@@ -30,27 +28,6 @@ type RecordViewBody = {
   updatedAt: string
 }
 
-class CapturingChecker implements ContentChecker {
-  readonly calls: Array<{ text: string; openid: string | null }> = []
-
-  constructor(private readonly result: 'pass' | 'reject' | Error = 'pass') {}
-
-  async checkText(
-    text: string,
-    openid: string | null,
-  ): Promise<'pass' | 'reject'> {
-    this.calls.push({ text, openid })
-    if (this.result instanceof Error) {
-      throw this.result
-    }
-    return this.result
-  }
-
-  async submitImage(): Promise<{ status: 'ok' }> {
-    return { status: 'ok' }
-  }
-}
-
 function recordPayload(overrides: Record<string, unknown> = {}) {
   return {
     topicId: null,
@@ -63,11 +40,11 @@ function recordPayload(overrides: Record<string, unknown> = {}) {
   }
 }
 
-async function setupUsers(checker: ContentChecker = new CapturingChecker()) {
-  const { app, deps } = await createTestApp({ checker })
+async function setupUsers() {
+  const { app, deps } = await createTestApp()
   apps.push(app)
-  const tokenA = await login(app, 'record-owner-a')
-  const tokenB = await login(app, 'record-owner-b')
+  const tokenA = await loginAs(app, deps, 'record-owner-a')
+  const tokenB = await loginAs(app, deps, 'record-owner-b')
   const userIdA = app.jwt.decode<{ sub: string }>(tokenA)!.sub
   const userIdB = app.jwt.decode<{ sub: string }>(tokenB)!.sub
   return { app, deps, tokenA, tokenB, userIdA, userIdB }
@@ -140,8 +117,7 @@ async function createRecord(
 
 describe('records', () => {
   it('saves and reads excerpts, starred order, images, tags, topic, and signed image URLs', async () => {
-    const checker = new CapturingChecker()
-    const { app, deps, tokenA, userIdA } = await setupUsers(checker)
+    const { app, deps, tokenA, userIdA } = await setupUsers()
     const topic = await createTopic(app, tokenA)
     const image = await createImage(deps, userIdA, 'record-image')
     const link = 'https://example.com/article?q=1'
@@ -199,19 +175,6 @@ describe('records', () => {
       updatedAt: expect.any(String),
     })
     expect(new URL(saved.images[0].url!).hostname).toBe('localhost')
-    expect(checker.calls).toEqual([
-      {
-        text: [
-          payload.body,
-          ...payload.excerpts.flatMap((excerpt) => [
-            excerpt.quote,
-            excerpt.thought,
-          ]),
-          link,
-        ].join('\n'),
-        openid: 'record-owner-a',
-      },
-    ])
 
     const loaded = await request(app, tokenA, {
       method: 'GET',
@@ -240,10 +203,9 @@ describe('records', () => {
     expect(views.map((view) => view.id)).toEqual([second.id, saved.id])
   })
 
-  it('returns the existing 422 error and writes nothing when content is rejected', async () => {
-    const checker = new CapturingChecker('reject')
-    const { app, deps, tokenA, userIdA } = await setupUsers(checker)
-    const image = await createImage(deps, userIdA, 'rejected-content')
+  it('saves content without moderation and links supplied images', async () => {
+    const { app, deps, tokenA, userIdA } = await setupUsers()
+    const image = await createImage(deps, userIdA, 'unmoderated-content')
 
     const response = await request(app, tokenA, {
       method: 'POST',
@@ -256,65 +218,59 @@ describe('records', () => {
       }),
     })
 
-    expect(response.statusCode).toBe(422)
-    expect(response.json()).toEqual({
-      error: {
-        code: 'CONTENT_REJECTED',
-        message: '内容未通过安全检查，请修改后再保存',
-      },
-    })
-    expect(checker.calls).toEqual([
+    expect(response.statusCode).toBe(201)
+    const saved = response.json<RecordViewBody>()
+    expect(saved.body).toBe('正文 #检查')
+    expect(saved.links).toEqual(['https://example.com/check'])
+    expect(saved.excerpts).toEqual([
       {
-        text: ['正文 #检查', '引用', '想法', 'https://example.com/check'].join('\n'),
-        openid: 'record-owner-a',
+        id: expect.any(String),
+        quote: '引用',
+        thought: '想法',
+        starred: true,
       },
     ])
-    expect(await deps.db.selectFrom('records').selectAll().execute()).toEqual([])
-    expect(await deps.db.selectFrom('excerpts').selectAll().execute()).toEqual([])
-    expect(await deps.db.selectFrom('record_tags').selectAll().execute()).toEqual([])
+    expect(saved.images).toEqual([
+      { id: image.id, url: expect.any(String), status: 'ok' },
+    ])
+    expect(await deps.db.selectFrom('records').select('id').execute()).toHaveLength(1)
     expect(
       await deps.db
         .selectFrom('images')
         .select(['id', 'record_id'])
         .where('id', '=', image.id)
         .executeTakeFirstOrThrow(),
-    ).toEqual({ id: image.id, record_id: null })
+    ).toEqual({ id: image.id, record_id: saved.id })
   })
 
-  it('passes a thrown 503 through and writes nothing when the checker is unavailable', async () => {
-    const checker = new CapturingChecker(
-      new AppError(503, 'CHECK_UNAVAILABLE', '内容检查暂时不可用，内容已保留，请稍后再试'),
-    )
-    const { app, deps, tokenA, userIdA } = await setupUsers(checker)
-    const image = await createImage(deps, userIdA, 'unavailable-content')
+  it('saves records without depending on an external content checker', async () => {
+    const { app, deps, tokenA, userIdA } = await setupUsers()
+    const image = await createImage(deps, userIdA, 'no-checker-content')
 
     const response = await request(app, tokenA, {
       method: 'POST',
       url: '/records',
       payload: recordPayload({
-        body: '稍后重试',
+        body: '本地直接保存',
         excerpts: [{ quote: '引用', thought: '', starred: false }],
         imageIds: [image.id],
       }),
     })
 
-    expect(response.statusCode).toBe(503)
-    expect(response.json()).toEqual({
-      error: {
-        code: 'CHECK_UNAVAILABLE',
-        message: '内容检查暂时不可用，内容已保留，请稍后再试',
-      },
-    })
-    expect(await deps.db.selectFrom('records').selectAll().execute()).toEqual([])
-    expect(await deps.db.selectFrom('excerpts').selectAll().execute()).toEqual([])
-    expect(await deps.db.selectFrom('record_tags').selectAll().execute()).toEqual([])
+    expect(response.statusCode).toBe(201)
+    const saved = response.json<RecordViewBody>()
+    expect(saved.body).toBe('本地直接保存')
+    expect(saved.excerpts).toHaveLength(1)
+    expect(await deps.db.selectFrom('records').select('id').execute()).toEqual([
+      { id: saved.id },
+    ])
     expect(
       await deps.db
         .selectFrom('images')
         .select(['id', 'record_id'])
         .where('id', '=', image.id)
         .executeTakeFirstOrThrow(),
-    ).toEqual({ id: image.id, record_id: null })
+    ).toEqual({ id: image.id, record_id: saved.id })
   })
 
   it('fully replaces excerpts and tags, and PUT removing an image deletes its row and file', async () => {
@@ -583,9 +539,9 @@ describe('records', () => {
   })
 
   it('保存后 createdAt / updatedAt 是合法 ISO 字符串，links 读回是数组', async () => {
-    const { app } = await createTestApp()
+    const { app, deps } = await createTestApp()
     apps.push(app)
-    const token = await login(app)
+    const token = await loginAs(app, deps)
 
     const created = await app.inject({
       method: 'POST', url: '/records', headers: authHeader(token),

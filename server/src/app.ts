@@ -12,7 +12,6 @@ import { registerTopicRoutes } from './topics/routes.js'
 import type { Deps } from './deps.js'
 import { AppError } from './errors.js'
 import { registerImageRoutes } from './images/routes.js'
-import { registerWechatPushRoutes } from './moderation/push-routes.js'
 import { registerQueryRoutes } from './queries/routes.js'
 import { registerRecordRoutes } from './records/routes.js'
 
@@ -125,7 +124,6 @@ export async function buildApp(
   registerImageRoutes(app, deps)
   registerRecordRoutes(app, deps)
   registerQueryRoutes(app, deps)
-  registerWechatPushRoutes(app, deps)
 
   return app
 }

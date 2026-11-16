@@ -3,7 +3,7 @@ import { z } from 'zod'
 import type { Config } from '../config.js'
 import { toIsoString, type DB } from '../db/db.js'
 import type { Deps } from '../deps.js'
-import { AppError, notFound } from '../errors.js'
+import { notFound } from '../errors.js'
 import { toImageView } from '../images/routes.js'
 import { extractTags } from './tags.js'
 
@@ -212,30 +212,6 @@ export async function saveRecord(
   await assertTopicOwned(deps.db, userId, parsed.topicId)
   await assertImagesOwned(deps.db, userId, parsed.imageIds)
 
-  const identity = await deps.db
-    .selectFrom('user_identities')
-    .select('subject')
-    .where('user_id', '=', userId)
-    .where('provider', '=', 'wechat')
-    .limit(1)
-    .executeTakeFirst()
-  const checkedText = [
-    parsed.body,
-    ...parsed.excerpts.flatMap((excerpt) => [excerpt.quote, excerpt.thought]),
-    ...parsed.links,
-  ].join('\n')
-
-  const checkResult = await deps.checker.checkText(
-    checkedText,
-    identity?.subject ?? null,
-  )
-  if (checkResult === 'reject') {
-    throw new AppError(
-      422,
-      'CONTENT_REJECTED',
-      '内容未通过安全检查，请修改后再保存',
-    )
-  }
 
   let cleanupKeys: string[] = []
   const savedRecordId = await deps.db.transaction().execute(async (trx) => {

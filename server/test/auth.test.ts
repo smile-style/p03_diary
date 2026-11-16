@@ -13,95 +13,47 @@ function tokenPayload(app: FastifyInstance, token: string) {
   return app.jwt.decode<{ sub: string; iat: number; exp: number }>(token)!
 }
 
-describe('WeChat authentication', () => {
-  it('first login creates one user, identity and ordered default categories; repeat login reuses it', async () => {
-    const { app, deps } = await createTestApp()
+describe('local authentication', () => {
+  it('GET /auth/local 返回可用 token', async () => {
+    const { app } = await createTestApp()
     apps.push(app)
+    const res = await app.inject({ method: 'GET', url: '/auth/local' })
+    expect(res.statusCode).toBe(200)
+    expect(typeof res.json().token).toBe('string')
 
-    const token1 = await login(app, 'A')
-    const token2 = await login(app, 'A')
-    const user1 = tokenPayload(app, token1).sub
-    const user2 = tokenPayload(app, token2).sub
-
-    expect(user2).toBe(user1)
-
-    const users = await deps.db.selectFrom('users').select('id').execute()
-    expect(users).toEqual([{ id: user1 }])
-
-    const identities = await deps.db
-      .selectFrom('user_identities')
-      .select(['user_id', 'provider', 'subject'])
-      .execute()
-    expect(identities).toEqual([
-      { user_id: user1, provider: 'wechat', subject: 'A' },
-    ])
-
-    const categories = await deps.db
-      .selectFrom('categories')
-      .select(['name', 'sort_order'])
-      .where('user_id', '=', user1)
-      .orderBy('sort_order')
-      .execute()
-    expect(categories.map((category) => category.name)).toEqual([
-      '投资',
-      '学习',
-      '好文章',
-      '生活',
-    ])
-    expect(categories.map((category) => category.sort_order)).toEqual([0, 1, 2, 3])
-  })
-
-  it('looks up WeChat identities by both provider and subject', async () => {
-    const { app, deps } = await createTestApp()
-    apps.push(app)
-
-    const otherUser = (
-      await sql<{ id: string }>`insert into users default values returning id`.execute(deps.db)
-    ).rows[0]!
-    await deps.db
-      .insertInto('user_identities')
-      .values({ user_id: otherUser.id, provider: 'other', subject: 'A' })
-      .execute()
-
-    const token = await login(app, 'A')
-    const wechatUserId = tokenPayload(app, token).sub
-
-    expect(wechatUserId).not.toBe(otherUser.id)
-    const identities = await deps.db
-      .selectFrom('user_identities')
-      .select(['provider', 'subject', 'user_id'])
-      .orderBy('provider')
-      .execute()
-    expect(identities).toEqual([
-      { provider: 'other', subject: 'A', user_id: otherUser.id },
-      { provider: 'wechat', subject: 'A', user_id: wechatUserId },
-    ])
-  })
-
-  it('returns 401 UNAUTHORIZED for an invalid WeChat code without writing data', async () => {
-    const { app, deps } = await createTestApp()
-    apps.push(app)
-
-    const response = await app.inject({
-      method: 'POST',
-      url: '/auth/wechat',
-      payload: { code: 'bad' },
+    const me = await app.inject({
+      method: 'GET', url: '/categories', headers: authHeader(res.json().token),
     })
+    expect(me.statusCode).toBe(200)
+  })
 
-    expect(response.statusCode).toBe(401)
-    expect(response.json()).toMatchObject({ error: { code: 'UNAUTHORIZED' } })
-    expect(await deps.db.selectFrom('users').select('id').execute()).toEqual([])
-    expect(
-      await deps.db.selectFrom('user_identities').select('id').execute(),
-    ).toEqual([])
+  it('重复调用 /auth/local 不会重复建用户', async () => {
+    const { app, deps } = await createTestApp()
+    apps.push(app)
+    await app.inject({ method: 'GET', url: '/auth/local' })
+    await app.inject({ method: 'GET', url: '/auth/local' })
+
+    const users = await sql<{ n: number }>`select count(*) as n from users`.execute(deps.db)
+    expect(users.rows[0]?.n).toBe(1)
+  })
+
+  it('首次登录写入四个默认分类', async () => {
+    const { app } = await createTestApp()
+    apps.push(app)
+    const token = (await app.inject({ method: 'GET', url: '/auth/local' })).json().token
+    const res = await app.inject({ method: 'GET', url: '/categories', headers: authHeader(token) })
+    expect(res.json().items.map((item: { name: string }) => item.name)).toEqual([
+      '投资', '学习', '好文章', '生活',
+    ])
   })
 
   it('issues a JWT whose sub is the user id and whose lifetime is 30 days', async () => {
     const { app } = await createTestApp()
     apps.push(app)
 
-    const token = await login(app, 'expiry')
-    const payload = tokenPayload(app, token)
+    const response = await app.inject({ method: 'GET', url: '/auth/local' })
+    expect(response.statusCode).toBe(200)
+    const payload = tokenPayload(app, response.json().token)
 
     expect(payload.sub).toEqual(expect.any(String))
     expect(payload.exp - payload.iat).toBe(30 * 24 * 60 * 60)
@@ -118,7 +70,7 @@ describe('WeChat authentication', () => {
     expect(unauthorized.statusCode).toBe(401)
     expect(unauthorized.json()).toMatchObject({ error: { code: 'UNAUTHORIZED' } })
 
-    const token = await login(app, 'bearer')
+    const token = (await app.inject({ method: 'GET', url: '/auth/local' })).json().token
     const authenticated = await app.inject({
       method: 'GET',
       url: '/categories',
@@ -126,7 +78,6 @@ describe('WeChat authentication', () => {
     })
     expect(authenticated.statusCode).toBe(200)
     expect(authenticated.json()).toEqual({ items: expect.any(Array) })
-
 
     const session = await app.inject({
       method: 'GET',
@@ -160,8 +111,9 @@ describe('WeChat authentication', () => {
     const { app } = await createTestApp()
     apps.push(app)
 
-    const validToken = await login(app, 'expired')
-    const userId = tokenPayload(app, validToken).sub
+    const validResponse = await app.inject({ method: 'GET', url: '/auth/local' })
+    expect(validResponse.statusCode).toBe(200)
+    const userId = tokenPayload(app, validResponse.json().token).sub
     const expiredToken = app.jwt.sign({ sub: userId }, { expiresIn: -1 })
 
     const response = await app.inject({
@@ -174,57 +126,18 @@ describe('WeChat authentication', () => {
     expect(response.json()).toMatchObject({ error: { code: 'UNAUTHORIZED' } })
   })
 
-  it('keeps health, auth, files and WeChat push routes outside user authentication', async () => {
+  it('keeps health, local auth and files outside user authentication', async () => {
     const { app } = await createTestApp()
     apps.push(app)
 
     const health = await app.inject({ method: 'GET', url: '/health' })
     expect(health.statusCode).toBe(200)
 
-    const auth = await app.inject({
-      method: 'POST',
-      url: '/auth/wechat',
-      payload: { code: 'code_public' },
-    })
+    const auth = await app.inject({ method: 'GET', url: '/auth/local' })
     expect(auth.statusCode).toBe(200)
 
     const file = await app.inject({ method: 'GET', url: '/files/missing.txt' })
     expect(file.statusCode).toBe(403)
     expect(file.json()).toMatchObject({ error: { code: 'FORBIDDEN' } })
-
-    const push = await app.inject({ method: 'POST', url: '/wechat/push', payload: {} })
-    expect(push.statusCode).toBe(403)
-    expect(push.json()).toMatchObject({ error: { code: 'FORBIDDEN' } })
-  })
-
-  it('rolls back the whole first login when default category creation fails', async () => {
-    const { app, deps } = await createTestApp()
-    apps.push(app)
-
-    await sql`
-      create trigger fail_default_category_insert
-      before insert on categories
-      begin
-        select raise(abort, 'forced category failure');
-      end
-    `.execute(deps.db)
-
-    try {
-      const response = await app.inject({
-        method: 'POST',
-        url: '/auth/wechat',
-        payload: { code: 'code_rollback' },
-      })
-      expect(response.statusCode).toBe(500)
-      expect(response.json()).toMatchObject({ error: { code: 'INTERNAL' } })
-    } finally {
-      await sql`drop trigger if exists fail_default_category_insert`.execute(deps.db)
-    }
-
-    expect(await deps.db.selectFrom('users').select('id').execute()).toEqual([])
-    expect(
-      await deps.db.selectFrom('user_identities').select('id').execute(),
-    ).toEqual([])
-    expect(await deps.db.selectFrom('categories').select('id').execute()).toEqual([])
   })
 })

@@ -1,6 +1,6 @@
 import type { FastifyInstance, InjectOptions } from 'fastify'
 import { afterEach, describe, expect, it } from 'vitest'
-import { authHeader, createTestApp, login } from './helpers.js'
+import { authHeader, createTestApp, loginAs } from './helpers.js'
 
 const apps: FastifyInstance[] = []
 
@@ -67,10 +67,14 @@ type StarredPage = {
 async function setupUsers() {
   const { app, deps } = await createTestApp()
   apps.push(app)
-  const tokenA = await login(app, 'query-owner-a')
-  const tokenB = await login(app, 'query-owner-b')
+  const tokenA = await loginAs(app, deps, 'query-owner-a')
+  const tokenB = await loginAs(app, deps, 'query-owner-b')
   const userIdA = app.jwt.decode<{ sub: string }>(tokenA)!.sub
   const userIdB = app.jwt.decode<{ sub: string }>(tokenB)!.sub
+  for (const name of ['投资', '学习', '好文章', '生活']) {
+    await createCategory(app, tokenA, name)
+    await createCategory(app, tokenB, name)
+  }
   return { app, deps, tokenA, tokenB, userIdA, userIdB }
 }
 
@@ -831,9 +835,9 @@ describe('query routes', () => {
   })
 
   it('游标翻页不重复也不遗漏', async () => {
-    const { app } = await createTestApp()
+    const { app, deps } = await createTestApp()
     apps.push(app)
-    const token = await login(app)
+    const token = await loginAs(app, deps)
     const created: string[] = []
 
     for (let i = 0; i < 5; i += 1) {
@@ -868,9 +872,9 @@ describe('query routes', () => {
     expect(seen).toEqual([...created].reverse())
   })
   it('搜索匹配中文子串，且把 % 和 _ 当作字面量', async () => {
-    const { app } = await createTestApp()
+    const { app, deps } = await createTestApp()
     apps.push(app)
-    const token = await login(app)
+    const token = await loginAs(app, deps)
 
     for (const body of ['今天看了十五五规划', '折扣 100% 到手', 'a_b 命名']) {
       await app.inject({

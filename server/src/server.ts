@@ -1,8 +1,6 @@
-import { HttpWechatClient } from './auth/wechat-client.js'
-import { loadConfig } from './config.js'
+﻿import { loadConfig } from './config.js'
 import { buildApp } from './app.js'
 import { createDb } from './db/db.js'
-import { createChecker } from './deps.js'
 import { migrateToLatest } from './db/migrate.js'
 import { LocalFileStorage } from './images/storage.js'
 
@@ -11,13 +9,9 @@ const db = createDb(config.databaseFile)
 
 await migrateToLatest(db)
 
-const wechat = new HttpWechatClient(config.wechatAppId, config.wechatSecret)
-
 const app = await buildApp({
   config,
   db,
-  wechat,
-  checker: createChecker(config, wechat),
   storage: new LocalFileStorage(config.storageDir),
 })
 

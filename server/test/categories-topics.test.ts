@@ -1,6 +1,6 @@
 import type { FastifyInstance, InjectOptions } from 'fastify'
 import { afterEach, describe, expect, it } from 'vitest'
-import { authHeader, createTestApp, login } from './helpers.js'
+import { authHeader, createTestApp, loginAs } from './helpers.js'
 
 const apps: FastifyInstance[] = []
 
@@ -11,10 +11,14 @@ afterEach(async () => {
 async function setupUsers() {
   const { app, deps } = await createTestApp()
   apps.push(app)
-  const tokenA = await login(app, 'A')
-  const tokenB = await login(app, 'B')
+  const tokenA = await loginAs(app, deps, 'A')
+  const tokenB = await loginAs(app, deps, 'B')
   const userIdA = app.jwt.decode<{ sub: string }>(tokenA)!.sub
   const userIdB = app.jwt.decode<{ sub: string }>(tokenB)!.sub
+  for (const name of ['投资', '学习', '好文章', '生活']) {
+    await createCategory(app, tokenA, name)
+    await createCategory(app, tokenB, name)
+  }
   return { app, deps, tokenA, tokenB, userIdA, userIdB }
 }
 
