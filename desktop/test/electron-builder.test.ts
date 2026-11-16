@@ -21,7 +21,21 @@ describe('Windows 安装包配置', () => {
     }
 
     expect(pkg.scripts.dist).toBe(
-      'pnpm run build && electron-builder --win --config electron-builder.yml',
+      'pnpm run build && pnpm run clean && electron-builder --win --config electron-builder.yml',
     )
+  })
+  it('dist 前先清理 release，避免残留目录导致文件锁失败', async () => {
+    const pkg = JSON.parse(await readFile(join(process.cwd(), 'package.json'), 'utf8')) as {
+      scripts: Record<string, string>
+    }
+
+    expect(pkg.scripts.dist).toContain('clean')
+    expect(pkg.scripts.clean).toContain('release')
+  })
+
+  it('安装包文件名使用 ASCII，避免更新 URL 百分号编码', async () => {
+    const yaml = await readFile(join(process.cwd(), 'electron-builder.yml'), 'utf8')
+
+    expect(yaml).toContain('artifactName: wx-daily-setup-${version}.exe')
   })
 })

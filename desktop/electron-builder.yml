@@ -12,6 +12,7 @@ extraResources:
 win:
   target: nsis
 nsis:
+  artifactName: wx-daily-setup-${version}.exe
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
