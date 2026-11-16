@@ -126,3 +126,7 @@ export function startSilentCheck(): void {
 
   void autoUpdater.checkForUpdates().catch(() => undefined)
 }
+
+export function autoUpdaterQuitAndInstall(): void {
+  autoUpdater.quitAndInstall()
+}

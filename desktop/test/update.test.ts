@@ -15,7 +15,8 @@ vi.mock('electron-updater', () => ({
   },
 }))
 
-const { mapUpdaterEvent, registerUpdateIpc, startSilentCheck } = await import('../src/update.js')
+const { autoUpdaterQuitAndInstall, mapUpdaterEvent, registerUpdateIpc, startSilentCheck } =
+  await import('../src/update.js')
 
 describe('mapUpdaterEvent', () => {
   it('checking-for-update 映射为 checking', () => {
@@ -151,5 +152,16 @@ describe('registerUpdateIpc', () => {
     listener({} as any)
 
     expect(quitAndInstall).toHaveBeenCalledOnce()
+  })
+})
+
+describe('autoUpdaterQuitAndInstall', () => {
+  it('调用 electron-updater 的退出并安装方法', async () => {
+    const { autoUpdater } = await import('electron-updater')
+    vi.mocked(autoUpdater.quitAndInstall).mockClear()
+
+    autoUpdaterQuitAndInstall()
+
+    expect(autoUpdater.quitAndInstall).toHaveBeenCalledOnce()
   })
 })

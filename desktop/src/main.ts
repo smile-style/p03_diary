@@ -10,6 +10,11 @@ import { LocalFileStorage } from '../../server/src/images/storage.js'
 import { backupDatabase } from './backup.js'
 import { resolveDataDir } from './data-dir.js'
 import { loadOrCreateSecrets } from './secrets.js'
+import {
+  autoUpdaterQuitAndInstall,
+  registerUpdateIpc,
+  startSilentCheck,
+} from './update.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const PORT = 47821
@@ -105,7 +110,16 @@ async function startDesktop(): Promise<void> {
     webPreferences: {
       preload: join(here, 'preload.cjs'),
       contextIsolation: true,
-      additionalArguments: [`--wx-data-path=${dataDir}`],
+      additionalArguments: [`--wx-data-path=${dataDir}`, `--wx-app-version=${app.getVersion()}`],
+    },
+  })
+
+  registerUpdateIpc({
+    isPackaged: app.isPackaged,
+    currentVersion: app.getVersion(),
+    quitAndInstall: () => {
+      quitting = false
+      autoUpdaterQuitAndInstall()
     },
   })
 
@@ -115,6 +129,8 @@ async function startDesktop(): Promise<void> {
     }
   })
   mainWindow = window
+
+  startSilentCheck()
 
   await window.loadURL(`http://127.0.0.1:${PORT}/`)
 }

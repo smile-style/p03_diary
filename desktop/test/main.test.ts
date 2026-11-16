@@ -1,5 +1,6 @@
 ﻿import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
+import { readFile } from 'node:fs/promises'
 
 vi.mock('electron', () => ({
   app: {
@@ -33,5 +34,14 @@ describe('resolveWebRoot', () => {
         here: join('C:\\', 'unused'),
       }),
     ).toBe(join(resourcesPath, 'web'))
+  })
+
+  it('主进程接入了更新模块', async () => {
+    const source = await readFile(join(process.cwd(), 'src', 'main.ts'), 'utf8')
+
+    expect(source).toContain('registerUpdateIpc')
+    expect(source).toContain('quitAndInstall')
+    expect(source).toContain('startSilentCheck')
+    expect(source).toContain('--wx-app-version=')
   })
 })
