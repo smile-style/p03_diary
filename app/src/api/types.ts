@@ -80,6 +80,8 @@ export type Page<T> = {
 
 export type RecordFilter = {
   date?: string
+  year?: string
+  month?: string
   topicId?: string
   tag?: string
   q?: string

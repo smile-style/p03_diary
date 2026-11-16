@@ -3,6 +3,8 @@ import type { Page, RecordInput, RecordView } from './types'
 
 type ListRecordParams = {
   date?: string
+  year?: string
+  month?: string
   topicId?: string
   tag?: string
   q?: string
@@ -15,6 +17,8 @@ export async function listRecords(params: ListRecordParams = {}): Promise<Page<R
   return request<Page<RecordView>>('/records', {
     query: {
       date: params.date,
+      year: params.year,
+      month: params.month,
       topicId: params.topicId,
       tag: params.tag,
       q: params.q,
