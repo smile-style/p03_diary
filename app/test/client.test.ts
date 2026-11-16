@@ -1,4 +1,4 @@
-﻿import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   ApiError,
   getToken,
@@ -91,7 +91,7 @@ describe('request', () => {
     })
 
     expect(requestMock.mock.calls[0][0].url).toBe(
-      'http://192.168.8.16:3000/records?date=2026-11-06',
+      '/records?date=2026-11-06',
     )
   })
 })

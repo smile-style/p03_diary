@@ -1,9 +1,8 @@
-﻿import { createPinia, setActivePinia } from 'pinia'
+import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getToken, setToken } from '../src/api/client'
-import { loginWithWechat } from '../src/api/auth'
-import { useAuthStore } from '../src/stores/auth'
 import { TOKEN_KEY } from '../src/config'
+import { useAuthStore } from '../src/stores/auth'
 
 type CallbackOptions = {
   success?: (response: any) => void
@@ -12,20 +11,18 @@ type CallbackOptions = {
 
 function installUni(options: {
   storedToken?: string
-  loginCode?: string
   requestToken?: string
+  requestError?: { code: string; message: string }
 }) {
   const storage = new Map<string, unknown>()
   if (options.storedToken) storage.set(TOKEN_KEY, options.storedToken)
   const request = vi.fn((requestOptions: CallbackOptions & any) => {
     requestOptions.success?.({
-      statusCode: 200,
-      data: { token: options.requestToken ?? 'jwt-token' },
+      statusCode: options.requestError ? 503 : 200,
+      data: options.requestError
+        ? { error: options.requestError }
+        : { token: options.requestToken ?? 'local-token' },
     })
-    return 1
-  })
-  const login = vi.fn((loginOptions: CallbackOptions & any) => {
-    loginOptions.success?.({ code: options.loginCode ?? 'wx-code' })
     return 1
   })
   const getStorageSync = vi.fn((key: string) => storage.get(key) ?? '')
@@ -38,16 +35,21 @@ function installUni(options: {
 
   vi.stubGlobal('uni', {
     request,
-    login,
     getStorageSync,
     setStorageSync,
     removeStorageSync,
   })
 
-  return { request, login, storage, getStorageSync, setStorageSync, removeStorageSync }
+  return {
+    request,
+    storage,
+    getStorageSync,
+    setStorageSync,
+    removeStorageSync,
+  }
 }
 
-describe('wechat login session', () => {
+describe('local desktop auth session', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     setToken(null)
@@ -58,64 +60,42 @@ describe('wechat login session', () => {
     setToken(null)
   })
 
-  it('requests a token with the wechat login code and without auth', async () => {
-    const { request } = installUni({})
-
-    await expect(loginWithWechat('wx-code')).resolves.toEqual({ token: 'jwt-token' })
-
-    expect(request).toHaveBeenCalledOnce()
-    expect(request.mock.calls[0][0]).toMatchObject({
-      url: 'http://192.168.8.16:3000/auth/wechat',
-      method: 'POST',
-      data: { code: 'wx-code' },
-    })
-    expect(request.mock.calls[0][0].header.Authorization).toBeUndefined()
-  })
-
-  it('uses an existing stored token without logging in again', async () => {
-    const fake = installUni({ storedToken: 'stored-token' })
+  it('requests /auth/local on first startup and stores the local token', async () => {
+    const fake = installUni({ requestToken: 'local-token' })
     const store = useAuthStore()
 
     await store.ensureSession()
 
-    expect(store.token).toBe('stored-token')
+    expect(fake.request).toHaveBeenCalledOnce()
+    expect(fake.request.mock.calls[0][0]).toMatchObject({
+      url: '/auth/local',
+      method: 'GET',
+    })
+    expect(fake.request.mock.calls[0][0].header.Authorization).toBeUndefined()
+    expect(store.token).toBe('local-token')
     expect(store.ready).toBe(true)
-    expect(fake.login).not.toHaveBeenCalled()
-    expect(fake.request).not.toHaveBeenCalled()
-    expect(getToken()).toBe('stored-token')
+    expect(getToken()).toBe('local-token')
+    expect(fake.setStorageSync).toHaveBeenCalledWith(TOKEN_KEY, 'local-token')
   })
 
-  it('logs in once when ensureSession is called concurrently', async () => {
-    const fake = installUni({ loginCode: 'wx-code', requestToken: 'new-token' })
+  it('refreshes and replaces an existing local token on startup', async () => {
+    const fake = installUni({
+      storedToken: 'stored-token',
+      requestToken: 'refreshed-token',
+    })
     const store = useAuthStore()
 
-    await Promise.all([store.ensureSession(), store.ensureSession()])
+    await store.ensureSession()
 
-    expect(fake.login).toHaveBeenCalledOnce()
     expect(fake.request).toHaveBeenCalledOnce()
-    expect(store.token).toBe('new-token')
-    expect(store.ready).toBe(true)
-    expect(fake.setStorageSync).toHaveBeenCalledWith(TOKEN_KEY, 'new-token')
+    expect(store.token).toBe('refreshed-token')
+    expect(getToken()).toBe('refreshed-token')
+    expect(fake.storage.get(TOKEN_KEY)).toBe('refreshed-token')
   })
 
-  it('finishes startup with a visible error when login fails', async () => {
-    const storage = new Map<string, unknown>()
-    const request = vi.fn((requestOptions: CallbackOptions & any) => {
-      requestOptions.success?.({
-        statusCode: 503,
-        data: { error: { code: 'LOGIN_UNAVAILABLE', message: '登录服务暂不可用' } },
-      })
-      return 1
-    })
-    vi.stubGlobal('uni', {
-      request,
-      login: vi.fn((loginOptions: CallbackOptions & any) => {
-        loginOptions.success?.({ code: 'wx-code' })
-        return 1
-      }),
-      getStorageSync: vi.fn((key: string) => storage.get(key) ?? ''),
-      setStorageSync: vi.fn(),
-      removeStorageSync: vi.fn(),
+  it('finishes startup with a visible error when local login fails', async () => {
+    installUni({
+      requestError: { code: 'LOGIN_UNAVAILABLE', message: '登录服务暂不可用' },
     })
     const store = useAuthStore()
 
@@ -124,5 +104,19 @@ describe('wechat login session', () => {
     expect(store.ready).toBe(true)
     expect(store.token).toBeNull()
     expect(store.baseMessage).toBe('登录服务暂不可用')
+    expect(getToken()).toBeNull()
+  })
+
+  it('logout clears local storage and the in-memory token', async () => {
+    const fake = installUni({ storedToken: 'stored-token' })
+    const store = useAuthStore()
+
+    store.logout()
+
+    expect(fake.storage.has(TOKEN_KEY)).toBe(false)
+    expect(fake.removeStorageSync).toHaveBeenCalledWith(TOKEN_KEY)
+    expect(store.token).toBeNull()
+    expect(store.ready).toBe(false)
+    expect(getToken()).toBeNull()
   })
 })

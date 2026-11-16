@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onShow } from '@dcloudio/uni-app'
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import {
   createCategory,
   deleteCategory,
@@ -19,6 +19,17 @@ const busy = ref(false)
 const error = ref<string | null>(null)
 const version = manifest.versionName
 let requestVersion = 0
+const dataPath = ref('桌面版可查看')
+
+function openDataFolder(): void {
+  const bridge = (globalThis as any).wxDailyDesktop
+  if (bridge?.openDataFolder) bridge.openDataFolder()
+}
+
+onMounted(() => {
+  const bridge = (globalThis as any).wxDailyDesktop
+  if (bridge?.dataPath) dataPath.value = bridge.dataPath
+})
 
 onShow(() => {
   void loadCategories()
@@ -156,7 +167,7 @@ async function deleteCategoryAndReload(category: Category): Promise<void> {
 function clearLocalCache(): void {
   uni.showModal({
     title: '清除本地缓存',
-    content: '将删除本机草稿和登录信息，重新进入后会重新登录。确定清除吗？',
+    content: '将删除本机草稿与登录信息，重新进入后会自动恢复会话。',
     confirmText: '清除',
     confirmColor: '#d94b4b',
     success: (result) => {
@@ -170,7 +181,7 @@ function clearLocalCache(): void {
         auth.logout()
         uni.showModal({
           title: '已清除',
-          content: '草稿与登录信息已清除，重新进入小程序会自动重新登录。',
+          content: '草稿与登录信息已清除，重新进入后会自动恢复会话。',
           showCancel: false,
         })
       } catch (clearError) {
@@ -186,11 +197,11 @@ function clearLocalCache(): void {
     <scroll-view class="page-scroll" scroll-y>
       <view class="account-card">
         <view class="account-card__avatar">
-          <text>微</text>
+          <text>本</text>
         </view>
         <view class="account-card__info">
-          <text class="account-card__name">微信登录</text>
-          <text class="account-card__hint">生活记录与你的微信账号绑定</text>
+          <text class="account-card__name">本机单用户</text>
+          <text class="account-card__hint">数据保存在这台电脑上，不联网也能用</text>
         </view>
       </view>
 
@@ -249,6 +260,14 @@ function clearLocalCache(): void {
       </view>
 
       <view class="section-card settings-card">
+        <view class="setting-item" @click="openDataFolder">
+          <view>
+            <text class="setting-item__title">打开数据文件夹</text>
+            <text class="setting-item__hint">{{ dataPath }}</text>
+          </view>
+          <text class="setting-item__arrow">›</text>
+        </view>
+        <view class="setting-divider" />
         <view class="setting-item" @click="clearLocalCache">
           <view>
             <text class="setting-item__title">清除本地缓存</text>

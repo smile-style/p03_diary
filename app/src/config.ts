@@ -1,5 +1,4 @@
-﻿export const API_BASE_URL: string =
-  import.meta.env.VITE_API_BASE_URL ?? 'http://192.168.8.16:3000'
+export const API_BASE_URL: string = import.meta.env.VITE_API_BASE_URL ?? ''
 export const TOKEN_KEY = 'wxdaily.token'
 export const DRAFT_KEY_PREFIX = 'wxdaily.draft.'
 export const COLORS = {
