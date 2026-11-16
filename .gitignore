@@ -1,2 +1,4 @@
 .superpowers/
 .pnpm-store/
+desktop/node_modules/
+desktop/dist/
