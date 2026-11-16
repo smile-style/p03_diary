@@ -7,7 +7,7 @@ import { migrateToLatest } from './db/migrate.js'
 import { LocalFileStorage } from './images/storage.js'
 
 const config = loadConfig(process.env)
-const db = createDb(config.databaseUrl)
+const db = createDb(config.databaseFile)
 
 await migrateToLatest(db)
 

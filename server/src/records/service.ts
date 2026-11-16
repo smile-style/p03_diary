@@ -1,7 +1,7 @@
 import { sql, type Kysely, type Transaction } from 'kysely'
 import { z } from 'zod'
 import type { Config } from '../config.js'
-import type { DB } from '../db/db.js'
+import { toIsoString, type DB } from '../db/db.js'
 import type { Deps } from '../deps.js'
 import { AppError, notFound } from '../errors.js'
 import { toImageView } from '../images/routes.js'
@@ -249,7 +249,7 @@ export async function saveRecord(
           topic_id: parsed.topicId,
           record_date: parsed.recordDate,
           body: parsed.body,
-          links: parsed.links,
+          links: JSON.stringify(parsed.links),
         })
         .returning('id')
         .executeTakeFirstOrThrow()
@@ -261,8 +261,8 @@ export async function saveRecord(
           topic_id: parsed.topicId,
           record_date: parsed.recordDate,
           body: parsed.body,
-          links: parsed.links,
-          updated_at: new Date(),
+          links: JSON.stringify(parsed.links),
+          // SQLite adapter normalizes Date to an ISO string.\n          updated_at: new Date() as unknown as string,
         })
         .where('id', '=', recordId)
         .where('user_id', '=', userId)
@@ -286,7 +286,7 @@ export async function saveRecord(
             position,
             quote: excerpt.quote,
             thought: excerpt.thought,
-            starred: excerpt.starred,
+            starred: excerpt.starred ? 1 : 0,
           })),
         )
         .execute()
@@ -349,7 +349,7 @@ export async function loadRecordViews(
     .select([
       'record.id as id',
       'record.topic_id as topic_id',
-      sql<string>`record.record_date::text`.as('record_date'),
+      'record.record_date as record_date',
       'record.body as body',
       'record.links as links',
       'record.created_at as created_at',
@@ -400,7 +400,7 @@ export async function loadRecordViews(
       id: excerpt.id,
       quote: excerpt.quote,
       thought: excerpt.thought,
-      starred: excerpt.starred,
+      starred: excerpt.starred === 1,
     })
     excerptsByRecord.set(excerpt.record_id, list)
   }
@@ -433,12 +433,12 @@ export async function loadRecordViews(
           : null,
       recordDate: record.record_date,
       body: record.body,
-      links: record.links,
+      links: JSON.parse(record.links) as string[],
       excerpts: excerptsByRecord.get(record.id) ?? [],
       images: imagesByRecord.get(record.id) ?? [],
       tags: tagsByRecord.get(record.id) ?? [],
-      createdAt: record.created_at.toISOString(),
-      updatedAt: record.updated_at.toISOString(),
+      createdAt: toIsoString(record.created_at),
+      updatedAt: toIsoString(record.updated_at),
     })
   }
 

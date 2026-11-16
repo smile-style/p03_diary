@@ -202,19 +202,11 @@ describe('WeChat authentication', () => {
     apps.push(app)
 
     await sql`
-      create function fail_default_category_insert()
-      returns trigger
-      language plpgsql
-      as $$
-      begin
-        raise exception 'forced category failure';
-      end;
-      $$
-    `.execute(deps.db)
-    await sql`
       create trigger fail_default_category_insert
       before insert on categories
-      for each row execute function fail_default_category_insert()
+      begin
+        select raise(abort, 'forced category failure');
+      end
     `.execute(deps.db)
 
     try {
@@ -226,10 +218,7 @@ describe('WeChat authentication', () => {
       expect(response.statusCode).toBe(500)
       expect(response.json()).toMatchObject({ error: { code: 'INTERNAL' } })
     } finally {
-      await sql`drop trigger if exists fail_default_category_insert on categories`.execute(
-        deps.db,
-      )
-      await sql`drop function if exists fail_default_category_insert()`.execute(deps.db)
+      await sql`drop trigger if exists fail_default_category_insert`.execute(deps.db)
     }
 
     expect(await deps.db.selectFrom('users').select('id').execute()).toEqual([])

@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 export type Config = {
   port: number
-  databaseUrl: string
+  databaseFile: string
   jwtSecret: string
   fileUrlSecret: string
   wechatAppId: string
@@ -15,7 +15,7 @@ export type Config = {
 
 const configSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
-  DATABASE_URL: z.string().min(1, 'DATABASE_URL 不能为空'),
+  DATABASE_FILE: z.string().min(1, 'DATABASE_FILE 不能为空'),
   JWT_SECRET: z.string().min(1, 'JWT_SECRET 不能为空'),
   FILE_URL_SECRET: z.string().min(1, 'FILE_URL_SECRET 不能为空'),
   WECHAT_APP_ID: z.string().min(1, 'WECHAT_APP_ID 不能为空'),
@@ -38,7 +38,7 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
   const parsed = result.data
   return {
     port: parsed.PORT,
-    databaseUrl: parsed.DATABASE_URL,
+    databaseFile: parsed.DATABASE_FILE,
     jwtSecret: parsed.JWT_SECRET,
     fileUrlSecret: parsed.FILE_URL_SECRET,
     wechatAppId: parsed.WECHAT_APP_ID,

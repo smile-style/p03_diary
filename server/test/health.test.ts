@@ -82,11 +82,11 @@ describe('server health', () => {
     const { app, deps } = await createTestApp()
     apps.push(app)
 
-    const tables = await sql<{ t: string }>`
-      select tablename as t from pg_tables where schemaname = 'public'
+    const tables = await sql<{ name: string }>`
+      select name from sqlite_master where type = 'table' and name not like 'sqlite_%'
     `.execute(deps.db)
 
-    expect(tables.rows.map((row) => row.t)).toEqual(
+    expect(tables.rows.map((row) => row.name)).toEqual(
       expect.arrayContaining([
         'users',
         'user_identities',

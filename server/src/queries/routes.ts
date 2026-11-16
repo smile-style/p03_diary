@@ -33,8 +33,9 @@ const dateSchema = z
 
 const uuidSchema = z.string().uuid('ID must be a UUID')
 
+// SQLite 的 strftime('%f') 固定输出三位毫秒。
 const cursorTimestampSchema = z.string().refine((value) => {
-  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$/.test(value)) {
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)) {
     return false
   }
   const parsed = new Date(value)
@@ -173,8 +174,8 @@ export async function listRecords(
     .selectFrom('records as record')
     .select([
       'record.id as id',
-      sql<string>`record.record_date::text`.as('record_date'),
-      sql<string>`to_char(record.created_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`.as('created_at'),
+      'record.record_date as record_date',
+      'record.created_at as created_at',
     ])
     .where('record.user_id', '=', userId)
 
@@ -201,34 +202,37 @@ export async function listRecords(
       from excerpts as starred_excerpt
       where starred_excerpt.record_id = record.id
         and starred_excerpt.user_id = ${userId}
-        and starred_excerpt.starred = true
+        and starred_excerpt.starred = 1
     )`)
   }
   if (query.q !== undefined) {
     const pattern = `%${escapeLikeLiteral(query.q)}%`
     idsQuery = idsQuery.where(sql<boolean>`(
-      record.body ilike ${pattern}
+      lower(record.body) like lower(${pattern}) escape '\\'
       or exists (
         select 1
         from excerpts as search_excerpt
         where search_excerpt.record_id = record.id
           and search_excerpt.user_id = ${userId}
           and (
-            search_excerpt.quote ilike ${pattern}
-            or search_excerpt.thought ilike ${pattern}
+            lower(search_excerpt.quote) like lower(${pattern}) escape '\\'
+            or lower(search_excerpt.thought) like lower(${pattern}) escape '\\'
           )
       )
     )`)
   }
   if (cursor !== undefined) {
     idsQuery = idsQuery.where(sql<boolean>`(
-      record.record_date,
-      record.created_at,
-      record.id
-    ) < (
-      ${cursor.recordDate}::date,
-      ${cursor.createdAt}::timestamptz,
-      ${cursor.id}::uuid
+      record.record_date < ${cursor.recordDate}
+      or (
+        record.record_date = ${cursor.recordDate}
+        and record.created_at < ${cursor.createdAt}
+      )
+      or (
+        record.record_date = ${cursor.recordDate}
+        and record.created_at = ${cursor.createdAt}
+        and record.id < ${cursor.id}
+      )
     )`)
   }
 
@@ -274,8 +278,8 @@ export function registerQueryRoutes(app: FastifyInstance, deps: Deps): void {
       const rows = await deps.db
         .selectFrom('records')
         .select([
-          sql<string>`record_date::text`.as('date'),
-          sql<number>`count(*)::int`.as('count'),
+          'record_date as date',
+          sql<number>`cast(count(*) as integer)`.as('count'),
         ])
         .where('user_id', '=', request.userId)
         .where('record_date', '>=', `${month}-01`)
@@ -284,7 +288,9 @@ export function registerQueryRoutes(app: FastifyInstance, deps: Deps): void {
         .orderBy('record_date')
         .execute()
 
-      return { days: rows }
+      return {
+        days: rows.map((row) => ({ ...row, count: Number(row.count) })),
+      }
     },
   )
 
@@ -295,7 +301,7 @@ export function registerQueryRoutes(app: FastifyInstance, deps: Deps): void {
       .innerJoin('tags as tag', 'tag.id', 'record_tag.tag_id')
       .select([
         'tag.name as name',
-        sql<number>`count(${sql.ref('record_tag.record_id')})::int`.as('count'),
+        sql<number>`cast(count(${sql.ref('record_tag.record_id')}) as integer)`.as('count'),
       ])
       .where('tag.user_id', '=', request.userId)
       .where('record.user_id', '=', request.userId)
@@ -307,7 +313,9 @@ export function registerQueryRoutes(app: FastifyInstance, deps: Deps): void {
       .orderBy('tag.name')
       .execute()
 
-    return { items: rows }
+    return {
+      items: rows.map((row) => ({ ...row, count: Number(row.count) })),
+    }
   })
 
   app.get(
@@ -330,24 +338,31 @@ export function registerQueryRoutes(app: FastifyInstance, deps: Deps): void {
         .select([
           'excerpt.id as excerpt_id',
           'record.id as record_id',
-          sql<string>`record.record_date::text`.as('record_date'),
-          sql<string>`to_char(record.created_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`.as('created_at'),
+          'record.record_date as record_date',
+          'record.created_at as created_at',
         ])
         .where('excerpt.user_id', '=', request.userId)
         .where('record.user_id', '=', request.userId)
-        .where('excerpt.starred', '=', true)
+        .where('excerpt.starred', '=', 1)
 
       if (cursor !== undefined) {
         rowsQuery = rowsQuery.where(sql<boolean>`(
-          record.record_date,
-          record.created_at,
-          record.id,
-          excerpt.id
-        ) < (
-          ${cursor.recordDate}::date,
-          ${cursor.createdAt}::timestamptz,
-          ${cursor.recordId}::uuid,
-          ${cursor.excerptId}::uuid
+          record.record_date < ${cursor.recordDate}
+          or (
+            record.record_date = ${cursor.recordDate}
+            and record.created_at < ${cursor.createdAt}
+          )
+          or (
+            record.record_date = ${cursor.recordDate}
+            and record.created_at = ${cursor.createdAt}
+            and record.id < ${cursor.recordId}
+          )
+          or (
+            record.record_date = ${cursor.recordDate}
+            and record.created_at = ${cursor.createdAt}
+            and record.id = ${cursor.recordId}
+            and excerpt.id < ${cursor.excerptId}
+          )
         )`)
       }
 

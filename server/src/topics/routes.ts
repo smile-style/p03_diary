@@ -31,9 +31,9 @@ async function loadTopicSummaries(
       topic.id,
       topic.name,
       topic.category_id,
-      count(distinct record.id)::int as record_count,
-      count(excerpt.id)::int as starred_count,
-      max(record.record_date)::text as last_record_date
+      cast(count(distinct record.id) as integer) as record_count,
+      cast(count(excerpt.id) as integer) as starred_count,
+      cast(max(record.record_date) as text) as last_record_date
     from topics as topic
     left join records as record
       on record.topic_id = topic.id
@@ -41,7 +41,7 @@ async function loadTopicSummaries(
     left join excerpts as excerpt
       on excerpt.record_id = record.id
       and excerpt.user_id = ${userId}
-      and excerpt.starred = true
+      and excerpt.starred = 1
     where topic.user_id = ${userId}
     group by topic.id, topic.name, topic.category_id
     order by max(record.record_date) desc nulls last, topic.name asc
@@ -51,8 +51,8 @@ async function loadTopicSummaries(
     id: row.id,
     name: row.name,
     categoryId: row.category_id,
-    recordCount: row.record_count,
-    starredCount: row.starred_count,
+    recordCount: Number(row.record_count),
+    starredCount: Number(row.starred_count),
     lastRecordDate: row.last_record_date,
   }))
 }
@@ -81,12 +81,9 @@ const updateTopicBodySchema = z
   )
 
 function isUniqueViolation(error: unknown): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    (error as { code?: unknown }).code === '23505'
-  )
+  if (typeof error !== 'object' || error === null) return false
+  const errcode = (error as { errcode?: unknown }).errcode
+  return errcode === 2067 || errcode === 1555
 }
 
 async function assertCategoryOwned(

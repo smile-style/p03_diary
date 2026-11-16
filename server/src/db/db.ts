@@ -1,11 +1,11 @@
-import { Kysely, PostgresDialect, type Generated } from 'kysely'
-import { Pool } from 'pg'
+import type { Generated, Kysely } from 'kysely'
+import { createSqliteDb } from './sqlite.js'
 
 export type ImageStatus = 'pending' | 'ok' | 'rejected'
 
 export interface UsersTable {
   id: Generated<string>
-  created_at: Generated<Date>
+  created_at: Generated<string>
 }
 
 export interface UserIdentitiesTable {
@@ -13,7 +13,7 @@ export interface UserIdentitiesTable {
   user_id: string
   provider: string
   subject: string
-  created_at: Generated<Date>
+  created_at: Generated<string>
 }
 
 export interface CategoriesTable {
@@ -21,7 +21,7 @@ export interface CategoriesTable {
   user_id: string
   name: string
   sort_order: Generated<number>
-  created_at: Generated<Date>
+  created_at: Generated<string>
 }
 
 export interface TopicsTable {
@@ -29,7 +29,7 @@ export interface TopicsTable {
   user_id: string
   category_id: string | null
   name: string
-  created_at: Generated<Date>
+  created_at: Generated<string>
 }
 
 export interface RecordsTable {
@@ -38,9 +38,9 @@ export interface RecordsTable {
   topic_id: string | null
   record_date: string
   body: Generated<string>
-  links: Generated<string[]>
-  created_at: Generated<Date>
-  updated_at: Generated<Date>
+  links: Generated<string>
+  created_at: Generated<string>
+  updated_at: Generated<string>
 }
 
 export interface ExcerptsTable {
@@ -50,7 +50,7 @@ export interface ExcerptsTable {
   position: number
   quote: string
   thought: Generated<string>
-  starred: Generated<boolean>
+  starred: Generated<number>
 }
 
 export interface ImagesTable {
@@ -62,7 +62,7 @@ export interface ImagesTable {
   status: Generated<ImageStatus>
   trace_id: string | null
   position: Generated<number>
-  created_at: Generated<Date>
+  created_at: Generated<string>
 }
 
 export interface TagsTable {
@@ -88,10 +88,10 @@ export interface DB {
   record_tags: RecordTagsTable
 }
 
-export function createDb(url: string): Kysely<DB> {
-  return new Kysely<DB>({
-    dialect: new PostgresDialect({
-      pool: new Pool({ connectionString: url }),
-    }),
-  })
+export function createDb(filename: string): Kysely<DB> {
+  return createSqliteDb(filename)
+}
+
+export function toIsoString(value: string | Date): string {
+  return typeof value === 'string' ? value : value.toISOString()
 }

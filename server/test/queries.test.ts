@@ -829,4 +829,69 @@ describe('query routes', () => {
       })
     }
   })
+
+  it('游标翻页不重复也不遗漏', async () => {
+    const { app } = await createTestApp()
+    apps.push(app)
+    const token = await login(app)
+    const created: string[] = []
+
+    for (let i = 0; i < 5; i += 1) {
+      const res = await app.inject({
+        method: 'POST', url: '/records',
+        headers: authHeader(token),
+        payload: {
+          topicId: null,
+          recordDate: `2026-03-0${i + 1}`,
+          body: `第 ${i} 条`,
+          links: [], excerpts: [], imageIds: [],
+        },
+      })
+      created.push(res.json().id)
+    }
+
+    const seen: string[] = []
+    let cursor: string | null = null
+    for (let page = 0; page < 3; page += 1) {
+      const res = await app.inject({
+        method: 'GET',
+        url: `/records?limit=2${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`,
+        headers: authHeader(token),
+      })
+      const body = res.json() as { items: { id: string }[]; nextCursor: string | null }
+      seen.push(...body.items.map((item) => item.id))
+      cursor = body.nextCursor
+    }
+
+    expect(seen).toHaveLength(5)
+    expect(new Set(seen).size).toBe(5)
+    expect(seen).toEqual([...created].reverse())
+  })
+  it('搜索匹配中文子串，且把 % 和 _ 当作字面量', async () => {
+    const { app } = await createTestApp()
+    apps.push(app)
+    const token = await login(app)
+
+    for (const body of ['今天看了十五五规划', '折扣 100% 到手', 'a_b 命名']) {
+      await app.inject({
+        method: 'POST', url: '/records', headers: authHeader(token),
+        payload: { topicId: null, recordDate: '2026-03-01', body, links: [], excerpts: [], imageIds: [] },
+      })
+    }
+
+    const hit = await app.inject({
+      method: 'GET', url: `/records?q=${encodeURIComponent('十五五')}`, headers: authHeader(token),
+    })
+    expect(hit.json().items).toHaveLength(1)
+
+    const percent = await app.inject({
+      method: 'GET', url: `/records?q=${encodeURIComponent('100%')}`, headers: authHeader(token),
+    })
+    expect(percent.json().items).toHaveLength(1)
+
+    const underscore = await app.inject({
+      method: 'GET', url: `/records?q=${encodeURIComponent('a_b')}`, headers: authHeader(token),
+    })
+    expect(underscore.json().items).toHaveLength(1)
+  })
 })

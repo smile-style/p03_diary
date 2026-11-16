@@ -24,12 +24,9 @@ const updateCategoryBodySchema = z
   )
 
 function isUniqueViolation(error: unknown): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    (error as { code?: unknown }).code === '23505'
-  )
+  if (typeof error !== 'object' || error === null) return false
+  const errcode = (error as { errcode?: unknown }).errcode
+  return errcode === 2067 || errcode === 1555
 }
 
 export function registerCategoryRoutes(

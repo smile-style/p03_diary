@@ -2,12 +2,9 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { FastifyInstance } from 'fastify'
-import type { Kysely } from 'kysely'
-import { sql } from 'kysely'
 import { buildApp } from '../src/app.js'
 import type { Config } from '../src/config.js'
 import type { WechatClient } from '../src/auth/wechat-client.js'
-import type { DB } from '../src/db/db.js'
 import { createDb } from '../src/db/db.js'
 import { migrateToLatest } from '../src/db/migrate.js'
 import type { Deps } from '../src/deps.js'
@@ -17,7 +14,7 @@ import { AppError } from '../src/errors.js'
 
 const testConfig: Config = {
   port: 3000,
-  databaseUrl: 'postgres://postgres:test@localhost:5433/wxdaily_test',
+  databaseFile: 'test.db',
   jwtSecret: 'test-jwt-secret',
   fileUrlSecret: 'test-file-url-secret',
   wechatAppId: 'test-app-id',
@@ -42,37 +39,21 @@ export class FakeWechatClient implements WechatClient {
   }
 }
 
-export async function resetDb(db: Kysely<DB>): Promise<void> {
-  await sql`
-    truncate table
-      users,
-      user_identities,
-      categories,
-      topics,
-      records,
-      excerpts,
-      images,
-      tags,
-      record_tags
-    restart identity cascade
-  `.execute(db)
-}
-
 export async function createTestApp(
   overrides: Partial<Deps> = {},
 ): Promise<{ app: FastifyInstance; deps: Deps }> {
-  const databaseUrl = process.env.TEST_DATABASE_URL ?? testConfig.databaseUrl
-  const storageDir = await mkdtemp(join(tmpdir(), 'wx-daily-test-storage-'))
-  const ownedDb = overrides.db ? undefined : createDb(databaseUrl)
+  const dir = await mkdtemp(join(tmpdir(), 'wx-daily-test-'))
+  const databaseFile = join(dir, 'app.db')
+  const storageDir = join(dir, 'storage')
+  const ownedDb = overrides.db ? undefined : createDb(databaseFile)
   const db = overrides.db ?? ownedDb!
 
   try {
     await migrateToLatest(db)
-    await resetDb(db)
 
     const config: Config = {
       ...testConfig,
-      databaseUrl,
+      databaseFile,
       ...overrides.config,
       storageDir,
     }
@@ -86,18 +67,18 @@ export async function createTestApp(
 
     const app = await buildApp(deps)
     app.addHook('onClose', async () => {
-      await rm(storageDir, { recursive: true, force: true })
       if (ownedDb) {
         await ownedDb.destroy()
       }
+      await rm(dir, { recursive: true, force: true })
     })
 
     return { app, deps }
   } catch (error) {
-    await rm(storageDir, { recursive: true, force: true })
     if (ownedDb) {
       await ownedDb.destroy()
     }
+    await rm(dir, { recursive: true, force: true })
     throw error
   }
 }

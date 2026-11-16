@@ -1,149 +1,125 @@
 import { sql, type Kysely } from 'kysely'
 import type { DB } from '../db.js'
 
+const UUID_DEFAULT = `(lower(hex(randomblob(4)) || '-' || hex(randomblob(2)) || '-4' || substr(hex(randomblob(2)),2) || '-' || substr('89ab',abs(random()) % 4 + 1,1) || substr(hex(randomblob(2)),2) || '-' || hex(randomblob(6))))`
+const NOW_DEFAULT = `(strftime('%Y-%m-%dT%H:%M:%fZ','now'))`
+
 export async function up(db: Kysely<DB>): Promise<void> {
-  await sql`create extension if not exists pg_trgm`.execute(db)
+  await sql`
+    create table users (
+      id text primary key default ${sql.raw(UUID_DEFAULT)},
+      created_at text not null default ${sql.raw(NOW_DEFAULT)}
+    )
+  `.execute(db)
 
-  await db.schema
-    .createTable('users')
-    .addColumn('id', 'uuid', (col) => col.primaryKey().defaultTo(sql`gen_random_uuid()`))
-    .addColumn('created_at', 'timestamptz', (col) => col.notNull().defaultTo(sql`now()`))
-    .execute()
+  await sql`
+    create table user_identities (
+      id text primary key default ${sql.raw(UUID_DEFAULT)},
+      user_id text not null references users(id) on delete cascade,
+      provider text not null,
+      subject text not null,
+      created_at text not null default ${sql.raw(NOW_DEFAULT)},
+      unique(provider, subject)
+    )
+  `.execute(db)
 
-  await db.schema
-    .createTable('user_identities')
-    .addColumn('id', 'uuid', (col) => col.primaryKey().defaultTo(sql`gen_random_uuid()`))
-    .addColumn('user_id', 'uuid', (col) =>
-      col.notNull().references('users.id').onDelete('cascade'),
+  await sql`
+    create table categories (
+      id text primary key default ${sql.raw(UUID_DEFAULT)},
+      user_id text not null references users(id) on delete cascade,
+      name text not null,
+      sort_order integer not null default 0,
+      created_at text not null default ${sql.raw(NOW_DEFAULT)},
+      unique(user_id, name)
     )
-    .addColumn('provider', 'text', (col) => col.notNull())
-    .addColumn('subject', 'text', (col) => col.notNull())
-    .addColumn('created_at', 'timestamptz', (col) => col.notNull().defaultTo(sql`now()`))
-    .addUniqueConstraint('user_identities_provider_subject_unique', ['provider', 'subject'])
-    .execute()
+  `.execute(db)
 
-  await db.schema
-    .createTable('categories')
-    .addColumn('id', 'uuid', (col) => col.primaryKey().defaultTo(sql`gen_random_uuid()`))
-    .addColumn('user_id', 'uuid', (col) =>
-      col.notNull().references('users.id').onDelete('cascade'),
+  await sql`
+    create table topics (
+      id text primary key default ${sql.raw(UUID_DEFAULT)},
+      user_id text not null references users(id) on delete cascade,
+      category_id text references categories(id) on delete set null,
+      name text not null,
+      created_at text not null default ${sql.raw(NOW_DEFAULT)},
+      unique(user_id, name)
     )
-    .addColumn('name', 'text', (col) => col.notNull())
-    .addColumn('sort_order', 'integer', (col) => col.notNull().defaultTo(0))
-    .addColumn('created_at', 'timestamptz', (col) => col.notNull().defaultTo(sql`now()`))
-    .addUniqueConstraint('categories_user_name_unique', ['user_id', 'name'])
-    .execute()
+  `.execute(db)
 
-  await db.schema
-    .createTable('topics')
-    .addColumn('id', 'uuid', (col) => col.primaryKey().defaultTo(sql`gen_random_uuid()`))
-    .addColumn('user_id', 'uuid', (col) =>
-      col.notNull().references('users.id').onDelete('cascade'),
+  await sql`
+    create table records (
+      id text primary key default ${sql.raw(UUID_DEFAULT)},
+      user_id text not null references users(id) on delete cascade,
+      topic_id text references topics(id) on delete set null,
+      record_date text not null,
+      body text not null default '',
+      links text not null default '[]',
+      created_at text not null default ${sql.raw(NOW_DEFAULT)},
+      updated_at text not null default ${sql.raw(NOW_DEFAULT)}
     )
-    .addColumn('category_id', 'uuid', (col) =>
-      col.references('categories.id').onDelete('set null'),
-    )
-    .addColumn('name', 'text', (col) => col.notNull())
-    .addColumn('created_at', 'timestamptz', (col) => col.notNull().defaultTo(sql`now()`))
-    .addUniqueConstraint('topics_user_name_unique', ['user_id', 'name'])
-    .execute()
+  `.execute(db)
 
-  await db.schema
-    .createTable('records')
-    .addColumn('id', 'uuid', (col) => col.primaryKey().defaultTo(sql`gen_random_uuid()`))
-    .addColumn('user_id', 'uuid', (col) =>
-      col.notNull().references('users.id').onDelete('cascade'),
+  await sql`
+    create table excerpts (
+      id text primary key default ${sql.raw(UUID_DEFAULT)},
+      record_id text not null references records(id) on delete cascade,
+      user_id text not null references users(id) on delete cascade,
+      position integer not null,
+      quote text not null,
+      thought text not null default '',
+      starred integer not null default 0
     )
-    .addColumn('topic_id', 'uuid', (col) =>
-      col.references('topics.id').onDelete('set null'),
-    )
-    .addColumn('record_date', 'date', (col) => col.notNull())
-    .addColumn('body', 'text', (col) => col.notNull().defaultTo(''))
-    .addColumn('links', sql`text[]`, (col) => col.notNull().defaultTo(sql`'{}'::text[]`))
-    .addColumn('created_at', 'timestamptz', (col) => col.notNull().defaultTo(sql`now()`))
-    .addColumn('updated_at', 'timestamptz', (col) => col.notNull().defaultTo(sql`now()`))
-    .execute()
+  `.execute(db)
 
-  await db.schema
-    .createTable('excerpts')
-    .addColumn('id', 'uuid', (col) => col.primaryKey().defaultTo(sql`gen_random_uuid()`))
-    .addColumn('record_id', 'uuid', (col) =>
-      col.notNull().references('records.id').onDelete('cascade'),
+  await sql`
+    create table images (
+      id text primary key default ${sql.raw(UUID_DEFAULT)},
+      user_id text not null references users(id) on delete cascade,
+      record_id text references records(id) on delete set null,
+      storage_key text not null,
+      mime text not null,
+      status text not null default 'ok',
+      trace_id text,
+      position integer not null default 0,
+      created_at text not null default ${sql.raw(NOW_DEFAULT)},
+      constraint images_status_check check (status in ('pending','ok','rejected'))
     )
-    .addColumn('user_id', 'uuid', (col) =>
-      col.notNull().references('users.id').onDelete('cascade'),
-    )
-    .addColumn('position', 'integer', (col) => col.notNull())
-    .addColumn('quote', 'text', (col) => col.notNull())
-    .addColumn('thought', 'text', (col) => col.notNull().defaultTo(''))
-    .addColumn('starred', 'boolean', (col) => col.notNull().defaultTo(false))
-    .execute()
+  `.execute(db)
 
-  await db.schema
-    .createTable('images')
-    .addColumn('id', 'uuid', (col) => col.primaryKey().defaultTo(sql`gen_random_uuid()`))
-    .addColumn('user_id', 'uuid', (col) =>
-      col.notNull().references('users.id').onDelete('cascade'),
+  await sql`
+    create table tags (
+      id text primary key default ${sql.raw(UUID_DEFAULT)},
+      user_id text not null references users(id) on delete cascade,
+      name text not null,
+      unique(user_id, name)
     )
-    .addColumn('record_id', 'uuid', (col) =>
-      col.references('records.id').onDelete('set null'),
-    )
-    .addColumn('storage_key', 'text', (col) => col.notNull())
-    .addColumn('mime', 'text', (col) => col.notNull())
-    .addColumn('status', 'text', (col) => col.notNull().defaultTo('ok'))
-    .addColumn('trace_id', 'text')
-    .addColumn('position', 'integer', (col) => col.notNull().defaultTo(0))
-    .addColumn('created_at', 'timestamptz', (col) => col.notNull().defaultTo(sql`now()`))
-    .addCheckConstraint('images_status_check', sql`status in ('pending', 'ok', 'rejected')`)
-    .execute()
+  `.execute(db)
 
-  await db.schema
-    .createTable('tags')
-    .addColumn('id', 'uuid', (col) => col.primaryKey().defaultTo(sql`gen_random_uuid()`))
-    .addColumn('user_id', 'uuid', (col) =>
-      col.notNull().references('users.id').onDelete('cascade'),
+  await sql`
+    create table record_tags (
+      record_id text not null references records(id) on delete cascade,
+      tag_id text not null references tags(id) on delete cascade,
+      primary key (record_id, tag_id)
     )
-    .addColumn('name', 'text', (col) => col.notNull())
-    .addUniqueConstraint('tags_user_name_unique', ['user_id', 'name'])
-    .execute()
-
-  await db.schema
-    .createTable('record_tags')
-    .addColumn('record_id', 'uuid', (col) =>
-      col.notNull().references('records.id').onDelete('cascade'),
-    )
-    .addColumn('tag_id', 'uuid', (col) =>
-      col.notNull().references('tags.id').onDelete('cascade'),
-    )
-    .addPrimaryKeyConstraint('record_tags_pkey', ['record_id', 'tag_id'])
-    .execute()
+  `.execute(db)
 
   await sql`
     create index records_user_date_idx
     on records (user_id, record_date desc, created_at desc)
   `.execute(db)
-  await sql`
-    create index records_body_trgm_idx
-    on records using gin (body gin_trgm_ops)
-  `.execute(db)
-  await sql`
-    create index excerpts_quote_trgm_idx
-    on excerpts using gin (quote gin_trgm_ops)
-  `.execute(db)
-  await sql`
-    create index excerpts_thought_trgm_idx
-    on excerpts using gin (thought gin_trgm_ops)
-  `.execute(db)
 }
 
 export async function down(db: Kysely<DB>): Promise<void> {
-  await db.schema.dropTable('record_tags').ifExists().execute()
-  await db.schema.dropTable('tags').ifExists().execute()
-  await db.schema.dropTable('images').ifExists().execute()
-  await db.schema.dropTable('excerpts').ifExists().execute()
-  await db.schema.dropTable('records').ifExists().execute()
-  await db.schema.dropTable('topics').ifExists().execute()
-  await db.schema.dropTable('categories').ifExists().execute()
-  await db.schema.dropTable('user_identities').ifExists().execute()
-  await db.schema.dropTable('users').ifExists().execute()
+  for (const table of [
+    'record_tags',
+    'tags',
+    'images',
+    'excerpts',
+    'records',
+    'topics',
+    'categories',
+    'user_identities',
+    'users',
+  ]) {
+    await sql`drop table if exists ${sql.table(table)}`.execute(db)
+  }
 }

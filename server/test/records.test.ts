@@ -581,4 +581,22 @@ describe('records', () => {
     expect(await deps.db.selectFrom('images').selectAll().execute()).toEqual([])
     expect(await deps.storage.get(image.storage_key)).toBeNull()
   })
+
+  it('保存后 createdAt / updatedAt 是合法 ISO 字符串，links 读回是数组', async () => {
+    const { app } = await createTestApp()
+    apps.push(app)
+    const token = await login(app)
+
+    const created = await app.inject({
+      method: 'POST', url: '/records', headers: authHeader(token),
+      payload: {
+        topicId: null, recordDate: '2026-03-01', body: 'x',
+        links: ['https://example.com/a'], excerpts: [], imageIds: [],
+      },
+    })
+    const body = created.json()
+    expect(new Date(body.createdAt).toISOString()).toBe(body.createdAt)
+    expect(new Date(body.updatedAt).toISOString()).toBe(body.updatedAt)
+    expect(body.links).toEqual(['https://example.com/a'])
+  })
 })
