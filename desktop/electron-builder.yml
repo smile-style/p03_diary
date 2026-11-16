@@ -1,0 +1,18 @@
+appId: com.wxdaily.desktop
+productName: 生活记录
+directories:
+  output: release
+files:
+  - dist/**
+  - package.json
+  - node_modules/**
+extraResources:
+  - from: ../app/dist/build/h5
+    to: web
+win:
+  target: nsis
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: false
