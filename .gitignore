@@ -3,3 +3,5 @@
 desktop/node_modules/
 desktop/dist/
 desktop/release/
+desktop/release-check/
+desktop/release-fixed/
