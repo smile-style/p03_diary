@@ -357,6 +357,27 @@ export function registerQueryRoutes(app: FastifyInstance, deps: Deps): void {
       items: rows.map((row) => ({ month: row.month, count: Number(row.count) })),
     }
   })
+
+  app.get('/record-days', { preHandler: app.requireUser }, async (request) => {
+    const rows = await deps.db
+      .selectFrom('records')
+      .select([
+        'record_date as date',
+        sql<number>`cast(count(*) as integer)`.as('count'),
+      ])
+      .where('user_id', '=', request.userId)
+      .groupBy('record_date')
+      .orderBy('record_date', 'desc')
+      .execute()
+
+    return {
+      items: rows.map((row) => ({
+        date: row.date,
+        count: Number(row.count),
+      })),
+    }
+  })
+
   app.get('/tags', { preHandler: app.requireUser }, async (request) => {
     const rows = await deps.db
       .selectFrom('record_tags as record_tag')

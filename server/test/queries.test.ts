@@ -1220,3 +1220,59 @@ describe('GET /records?year=', () => {
     }
   })
 })
+
+describe('GET /record-days', () => {
+  it('按天聚合记录数并按日期倒序返回', async () => {
+    const { app, deps } = await createTestApp()
+    apps.push(app)
+    const token = await loginAs(app, deps)
+
+    for (const recordDate of ['2026-11-16', '2026-11-16', '2026-11-14', '2025-12-31']) {
+      await app.inject({
+        method: 'POST',
+        url: '/records',
+        headers: authHeader(token),
+        payload: { topicId: null, recordDate, body: 'x', links: [], excerpts: [], imageIds: [] },
+      })
+    }
+
+    const res = await app.inject({ method: 'GET', url: '/record-days', headers: authHeader(token) })
+
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual({
+      items: [
+        { date: '2026-11-16', count: 2 },
+        { date: '2026-11-14', count: 1 },
+        { date: '2025-12-31', count: 1 },
+      ],
+    })
+  })
+
+  it('没有记录时返回空数组', async () => {
+    const { app, deps } = await createTestApp()
+    apps.push(app)
+    const token = await loginAs(app, deps)
+
+    const res = await app.inject({ method: 'GET', url: '/record-days', headers: authHeader(token) })
+
+    expect(res.json()).toEqual({ items: [] })
+  })
+
+  it('不返回其他用户的日期', async () => {
+    const { app, deps } = await createTestApp()
+    apps.push(app)
+    const tokenA = await loginAs(app, deps, 'A')
+    const tokenB = await loginAs(app, deps, 'B')
+
+    await app.inject({
+      method: 'POST',
+      url: '/records',
+      headers: authHeader(tokenB),
+      payload: { topicId: null, recordDate: '2019-01-01', body: 'B 的记录', links: [], excerpts: [], imageIds: [] },
+    })
+
+    const res = await app.inject({ method: 'GET', url: '/record-days', headers: authHeader(tokenA) })
+
+    expect(res.json()).toEqual({ items: [] })
+  })
+})
