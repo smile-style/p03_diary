@@ -49,10 +49,10 @@ describe('Windows 安装包配置', () => {
       await readFile(join(process.cwd(), '..', 'app', 'src', 'manifest.json'), 'utf8'),
     ) as { versionName: string; versionCode: string }
 
-    expect(pkg.version).toBe('0.2.0')
+    expect(pkg.version).toBe('0.2.1')
     expect(appPkg.version).toBe(pkg.version)
     expect(manifest.versionName).toBe(pkg.version)
-    expect(manifest.versionCode).toBe('200')
+    expect(manifest.versionCode).toBe('201')
   })
 
   it('配置了 GitHub Releases 发布渠道', async () => {

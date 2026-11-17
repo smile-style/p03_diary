@@ -8,7 +8,7 @@
 - `app/src/manifest.json` 的 `versionName`
 - `app/package.json` 的 `version`
 
-同时把 `app/src/manifest.json` 的 `versionCode` 递增。当前 `0.2.0` 对应 `200`。`desktop/test/electron-builder.test.ts` 会拦截版本不一致。
+同时把 `app/src/manifest.json` 的 `versionCode` 递增。当前 `0.2.1` 对应 `201`。`desktop/test/electron-builder.test.ts` 会拦截版本不一致。
 
 发布前先跑测试：
 
@@ -36,8 +36,8 @@ pnpm run dist
 构建完成后检查以下文件都存在且非空：
 
 ```text
-desktop\release\wx-daily-setup-0.2.0.exe
-desktop\release\wx-daily-setup-0.2.0.exe.blockmap
+desktop\release\wx-daily-setup-0.2.1.exe
+desktop\release\wx-daily-setup-0.2.1.exe.blockmap
 desktop\release\latest.yml
 desktop\release\win-unpacked\生活记录.exe
 desktop\release\win-unpacked\resources\app.asar
@@ -47,8 +47,8 @@ desktop\release\win-unpacked\resources\web\index.html
 `latest.yml` 必须包含正确的版本和文件名：
 
 ```yaml
-version: 0.2.0
-path: wx-daily-setup-0.2.0.exe
+version: 0.2.1
+path: wx-daily-setup-0.2.1.exe
 ```
 
 不要手工重命名 exe、blockmap 或 `latest.yml`，否则自动更新会找不到资产。
@@ -68,11 +68,11 @@ publish:
 
 ```powershell
 gh auth status
-gh release create v0.2.0 `
-  release/wx-daily-setup-0.2.0.exe `
-  release/wx-daily-setup-0.2.0.exe.blockmap `
+gh release create v0.2.1 `
+  release/wx-daily-setup-0.2.1.exe `
+  release/wx-daily-setup-0.2.1.exe.blockmap `
   release/latest.yml `
-  --title "v0.2.0" --notes "生活记录 v0.2.0"
+  --title "v0.2.1" --notes "生活记录 v0.2.1"
 ```
 
 ## 仓库可见性要求
@@ -91,10 +91,10 @@ curl.exe -L -s -o NUL -w "%{http_code}`n" https://github.com/smile-style/p03_dia
 
 1. 安装仓库外保留的 `0.1.0` 基线安装包，不要先覆盖成 `0.2.0`。
 2. 打开「我的」页面，确认显示旧版本号。
-3. 点击「检查更新」，确认发现 `0.2.0`。
+3. 点击「检查更新」，确认发现 `0.2.1`。
 4. 点击「立即更新」，确认出现下载进度。
 5. 下载完成后点击「立即重启」，确认应用退出、安装并重新启动。
-6. 回到「我的」页面，确认版本号变为 `v0.2.0`，记录和图片仍然存在。
+6. 回到「我的」页面，确认版本号变为 `v0.2.1`，记录和图片仍然存在。
 
 ## 本次验收记录（2026-11-16）
 

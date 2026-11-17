@@ -15,7 +15,7 @@ describe('release documentation', () => {
     expect(guide).toContain('app/package.json')
     expect(guide).toContain('pnpm run build:h5')
     expect(guide).toContain('pnpm run dist')
-    expect(guide).toContain('gh release create v0.2.0')
+    expect(guide).toContain('gh release create v0.2.1')
     expect(guide).toContain('latest.yml')
     expect(guide).toContain('releases/latest/download/latest.yml')
     expect(guide).toContain('返回 200')
