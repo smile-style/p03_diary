@@ -26,7 +26,7 @@ describe('mine update card', () => {
     const source = readFileSync(pageUrl, 'utf8')
 
     expect(source).toContain('应用更新')
-    expect(source).toContain('版本 {{ appVersion }}')
+    expect(source).toContain('当前 v{{ appVersion }}')
     expect(source).toContain("updateState.kind === 'checking'")
     expect(source).toContain("updateState.kind === 'available'")
     expect(source).toContain("updateState.kind === 'downloading'")
@@ -40,9 +40,8 @@ describe('mine update card', () => {
 
   it('使用现有设计变量提供更新卡片样式', () => {
     const source = readFileSync(pageUrl, 'utf8')
-
-    expect(source).toContain('.update-card {')
     expect(source).toContain('.update-card__error {')
-    expect(source).toContain('.update-button {')
+    expect(source).toContain('.progress-track {')
+    expect(source).toContain('.setting-item {')
   })
 })

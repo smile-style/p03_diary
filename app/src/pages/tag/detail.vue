@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onLoad, onShow } from '@dcloudio/uni-app'
 import { computed, ref } from 'vue'
+import AppShell from '../../components/AppShell.vue'
 import EmptyState from '../../components/EmptyState.vue'
 import RecordCard from '../../components/RecordCard.vue'
 import { listRecords } from '../../api/records'
@@ -24,9 +25,6 @@ const isInitialLoading = computed(
 onLoad((options) => {
   const rawName = typeof options?.name === 'string' ? options.name : ''
   tagName.value = decodeOption(rawName)
-  if (tagName.value) {
-    uni.setNavigationBarTitle({ title: pageTitle.value })
-  }
 })
 
 onShow(() => {
@@ -102,108 +100,139 @@ async function loadMore(): Promise<void> {
 </script>
 
 <template>
-  <view class="tag-page">
+  <AppShell
+    active="topics"
+    title="标签归档"
+    eyebrow="按标签回看"
+    :description="tagName ? '所有带有 #' + tagName + ' 的记录' : '从标签回看记录'"
+    back
+  >
     <scroll-view class="page-scroll" scroll-y lower-threshold="80" @scrolltolower="loadMore">
-      <view class="tag-header">
-        <text class="tag-header__title">{{ pageTitle }}</text>
-        <text class="tag-header__hint">这个标签下的全部记录</text>
-      </view>
-
-      <view v-if="isInitialLoading" class="state-view">
-        <text>正在加载…</text>
-      </view>
-
-      <view v-else-if="error" class="state-view">
-        <text class="state-view__error">{{ error }}</text>
-        <button class="state-view__button" @click="loadPage">重试</button>
-      </view>
-
-      <EmptyState
-        v-else-if="records.length === 0"
-        text="这个标签下还没有记录"
-      />
-
-      <template v-else>
-        <RecordCard v-for="record in records" :key="record.id" :record="record" />
-        <view v-if="loadingMore" class="loading-more">
-          <text>正在加载更多…</text>
+      <view class="tag-inner">
+        <view class="tag-summary">
+          <text class="tag-summary__hash">#</text>
+          <view>
+            <text class="tag-summary__eyebrow">TAG ARCHIVE</text>
+            <text class="tag-summary__title">{{ pageTitle }}</text>
+            <text class="tag-summary__hint">这个标签下的全部记录</text>
+          </view>
         </view>
-        <view v-else-if="!nextCursor" class="list-end">
-          <text>已经到底了</text>
-        </view>
-      </template>
 
-      <view class="safe-area" />
+        <view v-if="isInitialLoading" class="page-state">
+          <text class="page-state__title">正在整理标签记录</text>
+        </view>
+
+        <view v-else-if="error" class="page-state">
+          <text class="page-state__title">标签记录没有加载出来</text>
+          <text class="page-state__error">{{ error }}</text>
+          <button class="app-button app-button--primary" @click="loadPage">重试</button>
+        </view>
+
+        <EmptyState
+          v-else-if="records.length === 0"
+          title="这个标签还是空的"
+          text="记录正文里写上 #标签，相关内容就会自动归到这里。"
+        />
+
+        <template v-else>
+          <view class="record-list">
+            <RecordCard v-for="record in records" :key="record.id" :record="record" />
+          </view>
+          <view v-if="loadingMore" class="loading-more">
+            <text>正在继续加载…</text>
+          </view>
+          <view v-else-if="!nextCursor" class="list-end">
+            <text>这个标签的记录都在这里</text>
+          </view>
+        </template>
+      </view>
     </scroll-view>
-  </view>
+  </AppShell>
 </template>
 
 <style scoped>
-.tag-page {
-  height: 100vh;
-  background: var(--color-bg);
+.tag-inner {
+  width: 100%;
+  max-width: 940px;
+  margin: 0 auto;
+  padding: 28px 42px 56px;
 }
 
-.page-scroll {
-  height: 100vh;
+.tag-summary {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 22px;
+  padding: 22px 26px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-soft);
 }
 
-.tag-header {
-  margin: 20rpx 24rpx 8rpx;
-  padding: 28rpx 30rpx;
-  border-radius: 24rpx;
-  background: linear-gradient(135deg, #effbf4, #ffffff);
-}
-
-.tag-header__title {
-  display: block;
-  color: var(--color-primary);
-  font-size: 38rpx;
+.tag-summary__hash {
+  display: flex;
+  width: 58px;
+  height: 58px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: 18px;
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  font-family: var(--font-display);
+  font-size: 30px;
   font-weight: 700;
 }
 
-.tag-header__hint {
+.tag-summary__eyebrow {
   display: block;
-  margin-top: 10rpx;
-  color: var(--color-muted);
-  font-size: 23rpx;
+  color: var(--color-accent);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.17em;
 }
 
-.state-view {
+.tag-summary__title {
+  display: block;
+  margin-top: 4px;
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: 27px;
+  font-weight: 700;
+}
+
+.tag-summary__hint {
+  display: block;
+  margin-top: 5px;
+  color: var(--color-muted);
+  font-size: 10px;
+}
+
+.record-list {
   display: flex;
-  min-height: 420rpx;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 20rpx;
-  padding: 48rpx;
-  color: var(--color-muted);
-  text-align: center;
+  gap: 12px;
 }
 
-.state-view__error {
-  color: #d94b4b;
-  font-size: 25rpx;
+@media (max-width: 980px) {
+  .tag-inner {
+    padding-right: 28px;
+    padding-left: 28px;
+  }
 }
 
-.state-view__button {
-  min-width: 180rpx;
-  border-radius: 36rpx;
-  background: var(--color-primary);
-  color: #ffffff;
-  font-size: 26rpx;
-  line-height: 72rpx;
-}
+@media (max-width: 699px) {
+  .tag-inner {
+    padding: 18px 16px 38px;
+  }
 
-.loading-more,
-.list-end {
-  padding: 26rpx;
-  color: var(--color-muted);
-  font-size: 23rpx;
-  text-align: center;
-}
+  .tag-summary {
+    padding: 18px;
+  }
 
-.safe-area {
-  height: calc(40rpx + env(safe-area-inset-bottom));
+  .tag-summary__title {
+    font-size: 23px;
+  }
 }
 </style>

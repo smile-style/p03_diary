@@ -107,6 +107,8 @@ async function startDesktop(): Promise<void> {
     minWidth: 760,
     minHeight: 600,
     title: '生活记录',
+    autoHideMenuBar: true,
+    backgroundColor: '#f3efe8',
     webPreferences: {
       preload: join(here, 'preload.cjs'),
       contextIsolation: true,
@@ -122,6 +124,8 @@ async function startDesktop(): Promise<void> {
       autoUpdaterQuitAndInstall()
     },
   })
+
+  window.removeMenu()
 
   window.on('closed', () => {
     if (mainWindow === window) {

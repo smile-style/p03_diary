@@ -110,7 +110,9 @@ describe('timeline page integration', () => {
     expect(source).toContain('@select="selectYear"')
     expect(source).toContain('const groups = computed(() => groupByMonth(timeline.items))')
     expect(source).toContain('{{ monthCount(group.month) }} 条')
-    expect(source).toContain('height: calc(100vh - 233rpx);')
+    expect(source).toContain('<AppShell')
+    expect(source).toContain('active="timeline"')
+    expect(source).toContain('class="timeline-inner"')
   })
 
   it('月份切换重新走服务端列表请求，并在全部年份时禁止月份筛选', () => {

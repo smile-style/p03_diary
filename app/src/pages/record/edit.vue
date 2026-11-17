@@ -2,6 +2,8 @@
 import { onLoad, onUnload } from '@dcloudio/uni-app'
 import { computed, reactive, ref, watch } from 'vue'
 import { ApiError } from '../../api/client'
+import AppIcon from '../../components/AppIcon.vue'
+import AppShell from '../../components/AppShell.vue'
 import { uploadImageApi } from '../../api/images'
 import { createRecord, getRecord, updateRecord } from '../../api/records'
 import { getTopicOverview } from '../../api/topics'
@@ -324,261 +326,511 @@ async function save(): Promise<void> {
 </script>
 
 <template>
-  <view class="editor-page">
-    <view class="editor-header">
-      <button class="editor-header__action" @click="cancelEditor">取消</button>
-      <text class="editor-header__title">{{ pageTitle }}</text>
+  <AppShell
+    active="timeline"
+    :title="pageTitle"
+    eyebrow="写作"
+    description="先写下来，再慢慢整理成可以回看的样子。"
+    back
+  >
+    <template #actions>
+      <button class="app-button app-button--ghost" @click="cancelEditor">取消</button>
       <button
-        class="editor-header__action editor-header__save"
+        class="app-button app-button--primary"
         :disabled="saving || !hydrated"
         @click="save"
       >
-        {{ saving ? '保存中' : '保存' }}
+        {{ saving ? '保存中…' : '保存记录' }}
       </button>
+    </template>
+
+    <view v-if="!hydrated" class="page-state">
+      <text class="page-state__title">正在准备这张纸</text>
+      <text class="page-state__message">草稿与主题信息马上就好。</text>
     </view>
 
-    <view v-if="!hydrated" class="loading-state">
-      <text>正在加载…</text>
-    </view>
+    <scroll-view v-else class="page-scroll" scroll-y>
+      <view class="editor-inner">
+        <view class="editor-layout">
+          <view class="editor-main">
+            <view class="writing-card">
+              <view class="card-heading">
+                <view>
+                  <text class="card-heading__eyebrow">TODAY</text>
+                  <text class="card-heading__title">写点什么</text>
+                </view>
+                <text class="card-heading__meta">{{ draft.recordDate }}</text>
+              </view>
 
-    <scroll-view v-else class="editor-scroll" scroll-y>
-      <view class="form-card meta-row">
-        <picker
-          class="meta-picker"
-          mode="selector"
-          :range="topicLabels"
-          :value="topicPickerIndex"
-          @change="changeTopic"
-        >
-          <view class="meta-picker__content">
-            <text class="meta-picker__label">主题</text>
-            <text class="meta-picker__value">{{ topicLabels[topicPickerIndex] }}</text>
-            <text class="meta-picker__arrow">›</text>
-          </view>
-        </picker>
-        <picker
-          class="meta-picker"
-          mode="date"
-          :value="draft.recordDate"
-          @change="changeDate"
-        >
-          <view class="meta-picker__content">
-            <text class="meta-picker__label">日期</text>
-            <text class="meta-picker__value">{{ draft.recordDate }}</text>
-            <text class="meta-picker__arrow">›</text>
-          </view>
-        </picker>
-      </view>
+              <textarea
+                v-model="draft.body"
+                class="body-input"
+                auto-height
+                maxlength="-1"
+                placeholder="今天发生了什么，或者此刻在想什么…"
+              />
 
-      <view class="form-card body-card">
-        <textarea
-          v-model="draft.body"
-          class="body-input"
-          auto-height
-          maxlength="-1"
-          placeholder="写点什么…"
-        />
-      </view>
-
-      <view
-        v-for="(excerpt, index) in draft.excerpts"
-        :key="index"
-        class="excerpt-card"
-      >
-        <view class="excerpt-card__header">
-          <text class="excerpt-card__title">摘抄 {{ index + 1 }}</text>
-          <view class="excerpt-card__star">
-            <text>★</text>
-            <switch
-              :checked="excerpt.starred"
-              color="#f0a020"
-              @change="changeStar(index, $event)"
-            />
-          </view>
-        </view>
-        <textarea
-          v-model="excerpt.quote"
-          class="excerpt-input"
-          auto-height
-          maxlength="-1"
-          placeholder="摘抄原文"
-        />
-        <textarea
-          v-model="excerpt.thought"
-          class="excerpt-input excerpt-input--thought"
-          auto-height
-          maxlength="-1"
-          placeholder="我的想法"
-        />
-        <button class="text-button text-button--danger" @click="removeExcerpt(index)">
-          删除
-        </button>
-      </view>
-
-      <button class="outline-button" @click="addExcerpt">＋ 添加一段摘抄</button>
-
-      <view class="form-card image-section">
-        <view class="section-title-row">
-          <text class="section-title">图片</text>
-          <text class="section-hint">{{ draft.imageIds.length }}/9</text>
-        </view>
-        <view class="image-grid">
-          <view
-            v-for="(imageId, index) in draft.imageIds"
-            :key="imageId"
-            class="image-item"
-          >
-            <image
-              v-if="imagePreviews[imageId]"
-              class="image-thumb"
-              :src="imagePreviews[imageId] || ''"
-              mode="aspectFill"
-              @click="previewImage(imageId)"
-            />
-            <view v-else class="image-thumb image-thumb--pending">
-              <text>已上传</text>
+              <view class="editor-toolbar">
+                <button class="toolbar__button" @click="addExcerpt">
+                  <AppIcon name="quote" />
+                  <text>摘抄</text>
+                </button>
+                <button class="toolbar__button" @click="appendHashtag">
+                  <text class="toolbar__hash">#</text>
+                  <text>标签</text>
+                </button>
+                <button class="toolbar__button" @click="chooseImages">
+                  <AppIcon name="image" />
+                  <text>图片</text>
+                </button>
+                <button class="toolbar__button" @click="addLink">
+                  <AppIcon name="link" />
+                  <text>链接</text>
+                </button>
+              </view>
             </view>
-            <button class="image-remove" @click="removeImage(index)">×</button>
+
+            <view v-if="draft.excerpts.length" class="excerpt-section">
+              <view class="section-heading">
+                <view>
+                  <text class="section-heading__eyebrow">EXCERPTS</text>
+                  <text class="section-heading__title">摘抄与想法</text>
+                </view>
+                <text class="section-heading__count">{{ draft.excerpts.length }} 段</text>
+              </view>
+
+              <view
+                v-for="(excerpt, index) in draft.excerpts"
+                :key="index"
+                class="excerpt-card"
+                :class="{ 'excerpt-card--starred': excerpt.starred }"
+              >
+                <view class="excerpt-card__header">
+                  <text class="excerpt-card__title">摘抄 {{ index + 1 }}</text>
+                  <view class="excerpt-card__star">
+                    <AppIcon name="star" />
+                    <switch
+                      :checked="excerpt.starred"
+                      color="#b45309"
+                      @change="changeStar(index, $event)"
+                    />
+                  </view>
+                </view>
+                <textarea
+                  v-model="excerpt.quote"
+                  class="excerpt-input"
+                  auto-height
+                  maxlength="-1"
+                  placeholder="摘抄原文"
+                />
+                <textarea
+                  v-model="excerpt.thought"
+                  class="excerpt-input excerpt-input--thought"
+                  auto-height
+                  maxlength="-1"
+                  placeholder="我的想法"
+                />
+                <button class="text-button text-button--danger" @click="removeExcerpt(index)">
+                  删除这段摘抄
+                </button>
+              </view>
+            </view>
+
+            <button class="add-excerpt-button" @click="addExcerpt">
+              <AppIcon name="plus" />
+              添加一段摘抄
+            </button>
           </view>
-          <button v-if="draft.imageIds.length < 9" class="image-add" @click="chooseImages">
-            <text v-if="uploading === 0" class="image-add__plus">＋</text>
-            <text v-else class="image-add__loading">上传中</text>
-            <text v-if="uploading === 0" class="image-add__label">添加图片</text>
-          </button>
+
+          <view class="editor-side">
+            <view class="side-card">
+              <view class="side-card__heading">
+                <text class="side-card__eyebrow">DETAILS</text>
+                <text class="side-card__title">记录信息</text>
+              </view>
+
+              <picker
+                class="meta-picker"
+                mode="selector"
+                :range="topicLabels"
+                :value="topicPickerIndex"
+                @change="changeTopic"
+              >
+                <view class="meta-picker__content">
+                  <text class="meta-picker__label">主题</text>
+                  <text class="meta-picker__value">{{ topicLabels[topicPickerIndex] }}</text>
+                  <AppIcon class="meta-picker__arrow" name="chevron-right" />
+                </view>
+              </picker>
+
+              <picker
+                class="meta-picker"
+                mode="date"
+                :value="draft.recordDate"
+                @change="changeDate"
+              >
+                <view class="meta-picker__content">
+                  <text class="meta-picker__label">日期</text>
+                  <text class="meta-picker__value">{{ draft.recordDate }}</text>
+                  <AppIcon class="meta-picker__arrow" name="chevron-right" />
+                </view>
+              </picker>
+            </view>
+
+            <view class="side-card">
+              <view class="side-card__heading side-card__heading--row">
+                <view>
+                  <text class="side-card__eyebrow">IMAGES</text>
+                  <text class="side-card__title">图片</text>
+                </view>
+                <text class="side-card__meta">{{ draft.imageIds.length }}/9</text>
+              </view>
+
+              <view class="image-grid">
+                <view
+                  v-for="(imageId, index) in draft.imageIds"
+                  :key="imageId"
+                  class="image-item"
+                >
+                  <image
+                    v-if="imagePreviews[imageId]"
+                    class="image-thumb"
+                    :src="imagePreviews[imageId] || ''"
+                    mode="aspectFill"
+                    @click="previewImage(imageId)"
+                  />
+                  <view v-else class="image-thumb image-thumb--pending">
+                    <text>已上传</text>
+                  </view>
+                  <button class="image-remove" aria-label="移除图片" @click="removeImage(index)">
+                    <AppIcon name="close" />
+                  </button>
+                </view>
+
+                <button v-if="draft.imageIds.length < 9" class="image-add" @click="chooseImages">
+                  <AppIcon v-if="uploading === 0" name="plus" />
+                  <text v-if="uploading === 0" class="image-add__label">添加图片</text>
+                  <text v-else class="image-add__loading">上传中</text>
+                </button>
+              </view>
+            </view>
+
+            <view class="side-card">
+              <view class="side-card__heading side-card__heading--row">
+                <view>
+                  <text class="side-card__eyebrow">LINKS</text>
+                  <text class="side-card__title">相关链接</text>
+                </view>
+                <button class="text-button" @click="addLink">添加链接</button>
+              </view>
+
+              <view v-if="draft.links.length === 0" class="section-empty">
+                暂时没有链接
+              </view>
+              <view v-for="(link, index) in draft.links" :key="index" class="link-row">
+                <input
+                  v-model="draft.links[index]"
+                  class="link-input"
+                  type="text"
+                  placeholder="https://"
+                />
+                <button class="link-remove" @click="removeLink(index)">删除</button>
+              </view>
+            </view>
+          </view>
         </view>
       </view>
-
-      <view class="form-card">
-        <view class="section-title-row">
-          <text class="section-title">链接</text>
-          <button class="text-button" @click="addLink">＋ 添加链接</button>
-        </view>
-        <view v-if="draft.links.length === 0" class="section-empty">暂无链接</view>
-        <view v-for="(link, index) in draft.links" :key="index" class="link-row">
-          <input
-            v-model="draft.links[index]"
-            class="link-input"
-            type="text"
-            placeholder="https://"
-          />
-          <button class="link-remove" @click="removeLink(index)">删除</button>
-        </view>
-      </view>
-
-      <view class="toolbar">
-        <button class="toolbar__button" @click="addExcerpt">
-          <text class="toolbar__icon">❝</text>
-          <text>摘抄</text>
-        </button>
-        <button class="toolbar__button" @click="appendHashtag">
-          <text class="toolbar__icon">#</text>
-          <text>标签</text>
-        </button>
-        <button class="toolbar__button" @click="chooseImages">
-          <text class="toolbar__icon">▧</text>
-          <text>图片</text>
-        </button>
-        <button class="toolbar__button" @click="addLink">
-          <text class="toolbar__icon">↗</text>
-          <text>链接</text>
-        </button>
-      </view>
-
-      <view class="safe-area" />
     </scroll-view>
-  </view>
+  </AppShell>
 </template>
 
 <style scoped>
-.editor-page {
-  min-height: 100vh;
-  background: var(--color-bg);
+.editor-inner {
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 30px 42px 60px;
 }
 
-.editor-header {
-  position: sticky;
-  z-index: 10;
-  top: 0;
+.editor-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 306px;
+  align-items: start;
+  gap: 22px;
+}
+
+.editor-main,
+.editor-side {
   display: flex;
-  height: 96rpx;
+  min-width: 0;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.writing-card,
+.excerpt-card,
+.side-card,
+.add-excerpt-button {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.writing-card {
+  padding: 26px 28px 18px;
+}
+
+.card-heading,
+.section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.card-heading__eyebrow,
+.section-heading__eyebrow,
+.side-card__eyebrow {
+  display: block;
+  color: var(--color-accent);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.17em;
+}
+
+.card-heading__title,
+.section-heading__title,
+.side-card__title {
+  display: block;
+  margin-top: 4px;
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.card-heading__meta,
+.section-heading__count,
+.side-card__meta {
+  color: var(--color-muted);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+}
+
+.body-input {
+  width: 100%;
+  min-height: 380px;
+  color: var(--color-text);
+  font-size: 16px;
+  line-height: 1.95;
+}
+
+.editor-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--color-border);
+}
+
+.toolbar__button {
+  position: relative;
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  padding: 0 11px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-surface-muted);
+  color: var(--color-muted-strong);
+  font-size: 10px;
+}
+
+.toolbar__button::after {
+  position: absolute;
+  inset: -5px;
+  content: '';
+}
+
+.toolbar__button:hover {
+  border-color: var(--color-border-strong);
+  color: var(--color-accent);
+}
+
+.toolbar__button .app-icon {
+  width: 13px;
+  height: 13px;
+}
+
+.toolbar__hash {
+  color: var(--color-accent);
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.excerpt-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.excerpt-card {
+  padding: 20px 22px;
+}
+
+.excerpt-card--starred {
+  border-left: 3px solid var(--color-star);
+}
+
+.excerpt-card__header {
+  display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 24rpx;
-  background: #ffffff;
-  border-bottom: 1rpx solid var(--color-border);
+  gap: 14px;
+  margin-bottom: 8px;
 }
 
-.editor-header__title {
-  color: var(--color-text);
-  font-size: 32rpx;
-  font-weight: 600;
+.excerpt-card__title {
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 700;
 }
 
-.editor-header__action {
-  min-width: 112rpx;
-  margin: 0;
-  padding: 0;
-  background: transparent;
-  color: var(--color-muted);
-  font-size: 28rpx;
-  line-height: 72rpx;
-  text-align: left;
-}
-
-.editor-header__save {
-  color: var(--color-primary);
-  font-weight: 600;
-  text-align: right;
-}
-
-.editor-header__action[disabled] {
-  opacity: 0.45;
-}
-
-.editor-scroll {
-  height: calc(100vh - 96rpx);
-}
-
-.loading-state {
+.excerpt-card__star {
   display: flex;
-  height: 60vh;
+  align-items: center;
+  gap: 7px;
+  color: var(--color-star);
+}
+
+.excerpt-card__star .app-icon {
+  width: 12px;
+  height: 12px;
+}
+
+.excerpt-card__star switch {
+  transform: scale(0.72);
+  transform-origin: right center;
+}
+
+.excerpt-input {
+  width: 100%;
+  min-height: 70px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.excerpt-input--thought {
+  color: var(--color-muted);
+  font-family: var(--font-ui);
+  font-size: 12px;
+}
+
+.text-button {
+  position: relative;
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  margin: 8px 0 0;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-accent);
+  font-size: 10px;
+}
+
+.text-button::after {
+  position: absolute;
+  inset: -6px;
+  content: '';
+}
+
+.text-button:hover {
+  background: var(--color-accent-soft);
+}
+
+.text-button--danger {
+  color: var(--color-danger);
+}
+
+.text-button--danger:hover {
+  background: var(--color-danger-soft);
+}
+
+.add-excerpt-button {
+  display: flex;
+  min-height: 48px;
   align-items: center;
   justify-content: center;
-  color: var(--color-muted);
+  gap: 8px;
+  margin: 0;
+  border-style: dashed;
+  color: var(--color-accent);
+  font-size: 11px;
 }
 
-.form-card,
-.excerpt-card {
-  margin: 20rpx 24rpx;
-  padding: 24rpx 28rpx;
-  border-radius: 22rpx;
-  background: #ffffff;
-  box-shadow: 0 6rpx 22rpx rgba(0, 0, 0, 0.04);
+.add-excerpt-button:hover {
+  background: var(--color-accent-soft);
 }
 
-.meta-row {
+.add-excerpt-button .app-icon {
+  width: 13px;
+  height: 13px;
+}
+
+.side-card {
+  padding: 20px;
+}
+
+.side-card__heading {
+  margin-bottom: 12px;
+  padding-bottom: 13px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.side-card__heading--row {
   display: flex;
-  gap: 18rpx;
-  padding: 8rpx 12rpx;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .meta-picker {
-  min-width: 0;
-  flex: 1;
+  display: block;
 }
 
 .meta-picker__content {
   display: flex;
-  min-height: 88rpx;
+  min-height: 48px;
   align-items: center;
-  padding: 0 16rpx;
+  gap: 10px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.meta-picker:last-child .meta-picker__content {
+  border-bottom: 0;
 }
 
 .meta-picker__label {
+  width: 34px;
   flex: none;
-  margin-right: 14rpx;
   color: var(--color-muted);
-  font-size: 24rpx;
+  font-size: 10px;
 }
 
 .meta-picker__value {
@@ -586,243 +838,181 @@ async function save(): Promise<void> {
   flex: 1;
   overflow: hidden;
   color: var(--color-text);
-  font-size: 26rpx;
+  font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .meta-picker__arrow {
-  margin-left: 8rpx;
-  color: #bbbbbb;
-  font-size: 34rpx;
-}
-
-.body-card {
-  padding: 20rpx 24rpx;
-}
-
-.body-input {
-  width: 100%;
-  min-height: 300rpx;
-  color: var(--color-text);
-  font-size: 30rpx;
-  line-height: 1.7;
-}
-
-.excerpt-card {
-  padding-bottom: 18rpx;
-}
-
-.excerpt-card__header,
-.section-title-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.excerpt-card__header {
-  margin-bottom: 12rpx;
-}
-
-.excerpt-card__title,
-.section-title {
-  color: var(--color-text);
-  font-size: 28rpx;
-  font-weight: 600;
-}
-
-.excerpt-card__star {
-  display: flex;
-  align-items: center;
-  gap: 8rpx;
-  color: var(--color-star);
-  font-size: 30rpx;
-}
-
-.excerpt-card__star switch {
-  transform: scale(0.75);
-}
-
-.excerpt-input {
-  width: 100%;
-  min-height: 100rpx;
-  padding: 16rpx 0;
-  border-bottom: 1rpx solid var(--color-border);
-  color: #333333;
-  font-size: 28rpx;
-  line-height: 1.6;
-}
-
-.excerpt-input--thought {
+  width: 13px;
+  height: 13px;
   color: var(--color-muted);
-  font-size: 26rpx;
-}
-
-.text-button {
-  display: inline-flex;
-  min-width: 0;
-  margin: 0;
-  padding: 8rpx 0;
-  background: transparent;
-  color: var(--color-primary);
-  font-size: 24rpx;
-  line-height: 1.4;
-}
-
-.text-button--danger {
-  margin-top: 10rpx;
-  color: #d94b4b;
-}
-
-.outline-button {
-  margin: 20rpx 24rpx;
-  border: 1rpx dashed var(--color-primary);
-  border-radius: 20rpx;
-  background: rgba(7, 193, 96, 0.04);
-  color: var(--color-primary);
-  font-size: 26rpx;
-  line-height: 84rpx;
-}
-
-.section-title-row {
-  min-height: 52rpx;
-}
-
-.section-hint {
-  color: var(--color-muted);
-  font-size: 22rpx;
 }
 
 .image-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16rpx;
-  margin-top: 18rpx;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
 }
 
 .image-item,
 .image-thumb,
 .image-add {
   position: relative;
-  width: 166rpx;
-  height: 166rpx;
-  border-radius: 14rpx;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 11px;
 }
 
 .image-thumb {
-  display: block;
+  height: 100%;
+  background: var(--color-surface-muted);
 }
 
 .image-thumb--pending {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f1f1f1;
   color: var(--color-muted);
-  font-size: 22rpx;
+  font-size: 9px;
 }
 
 .image-remove {
   position: absolute;
-  top: -10rpx;
-  right: -10rpx;
-  width: 42rpx;
-  height: 42rpx;
+  top: 5px;
+  right: 5px;
+  display: flex;
+  width: 25px;
+  height: 25px;
+  align-items: center;
+  justify-content: center;
   margin: 0;
   padding: 0;
-  border-radius: 21rpx;
-  background: rgba(0, 0, 0, 0.65);
+  border: 0;
+  border-radius: 50%;
+  background: rgba(38, 33, 25, 0.72);
   color: #ffffff;
-  font-size: 28rpx;
-  line-height: 38rpx;
+}
+
+.image-remove::after {
+  position: absolute;
+  inset: -10px;
+  content: '';
+}
+
+.image-remove .app-icon {
+  width: 11px;
+  height: 11px;
 }
 
 .image-add {
   display: flex;
+  min-height: 92px;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  border: 1rpx dashed #cccccc;
-  background: #fafafa;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  border: 1px dashed var(--color-border-strong);
+  background: var(--color-surface-muted);
   color: var(--color-muted);
+  font-size: 9px;
 }
 
-.image-add__plus {
-  font-size: 56rpx;
-  line-height: 1;
+.image-add:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
 }
 
-.image-add__label,
-.image-add__loading {
-  margin-top: 10rpx;
-  font-size: 22rpx;
+.image-add .app-icon {
+  width: 16px;
+  height: 16px;
 }
 
 .section-empty {
-  padding: 24rpx 0 8rpx;
+  padding: 18px 0;
   color: var(--color-muted);
-  font-size: 24rpx;
+  font-size: 10px;
+  text-align: center;
 }
 
 .link-row {
   display: flex;
   align-items: center;
-  gap: 12rpx;
-  padding-top: 18rpx;
+  gap: 6px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.link-row:last-child {
+  border-bottom: 0;
 }
 
 .link-input {
   min-width: 0;
-  height: 72rpx;
+  height: 36px;
   flex: 1;
-  padding: 0 18rpx;
-  border-radius: 12rpx;
-  background: #f5f5f5;
+  padding: 0 9px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface-muted);
   color: var(--color-text);
-  font-size: 24rpx;
+  font-size: 10px;
 }
 
 .link-remove {
-  min-width: 92rpx;
+  min-height: 32px;
   margin: 0;
-  padding: 0;
+  padding: 0 5px;
+  border: 0;
   background: transparent;
-  color: #d94b4b;
-  font-size: 22rpx;
-  line-height: 64rpx;
+  color: var(--color-danger);
+  font-size: 9px;
 }
 
-.toolbar {
-  display: flex;
-  margin: 32rpx 24rpx 0;
-  padding: 12rpx 0;
-  border-radius: 22rpx;
-  background: #ffffff;
-  box-shadow: 0 6rpx 22rpx rgba(0, 0, 0, 0.04);
+@media (max-width: 950px) {
+  .editor-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .editor-side {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .editor-side .side-card:last-child {
+    grid-column: 1 / -1;
+  }
 }
 
-.toolbar__button {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  flex-direction: column;
-  align-items: center;
-  gap: 4rpx;
-  margin: 0;
-  padding: 10rpx 0;
-  background: transparent;
-  color: var(--color-muted);
-  font-size: 21rpx;
-  line-height: 1.4;
+@media (max-width: 980px) {
+  .editor-inner {
+    padding-right: 28px;
+    padding-left: 28px;
+  }
 }
 
-.toolbar__icon {
-  color: var(--color-primary);
-  font-size: 34rpx;
-  line-height: 1.2;
-}
+@media (max-width: 699px) {
+  .editor-inner {
+    padding: 18px 16px 38px;
+  }
 
-.safe-area {
-  height: calc(72rpx + env(safe-area-inset-bottom));
+  .writing-card {
+    padding: 20px;
+  }
+
+  .body-input {
+    min-height: 300px;
+    font-size: 15px;
+  }
+
+  .editor-side {
+    display: flex;
+  }
+
+  .excerpt-card {
+    padding: 17px;
+  }
 }
 </style>

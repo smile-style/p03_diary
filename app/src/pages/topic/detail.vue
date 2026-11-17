@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { onLoad, onShow } from '@dcloudio/uni-app'
 import { computed, ref } from 'vue'
+import AppIcon from '../../components/AppIcon.vue'
+import AppShell from '../../components/AppShell.vue'
 import EmptyState from '../../components/EmptyState.vue'
 import RecordCard from '../../components/RecordCard.vue'
 import { listRecords } from '../../api/records'
@@ -118,169 +120,242 @@ function createRecord(): void {
 </script>
 
 <template>
-  <view class="topic-detail-page">
+  <AppShell
+    active="topics"
+    title="主题详情"
+    eyebrow="主题"
+    :description="topic ? topic.name + ' · ' + topicMeta : '按主题回看记录'"
+    back
+  >
+    <template #actions>
+      <button class="app-button app-button--primary" @click="createRecord">
+        <AppIcon name="plus" />
+        在这个主题下记录
+      </button>
+    </template>
+
     <scroll-view class="page-scroll" scroll-y lower-threshold="80" @scrolltolower="loadMore">
-      <view v-if="topic" class="topic-header">
-        <text class="topic-header__name">{{ topic.name }}</text>
-        <text class="topic-header__meta">{{ topicMeta }}</text>
-      </view>
-
-      <view class="segment-control">
-        <text
-          class="segment-control__item"
-          :class="{ 'segment-control__item--active': filter === 'all' }"
-          @click="changeFilter('all')"
-        >
-          全部
-        </text>
-        <text
-          class="segment-control__item"
-          :class="{ 'segment-control__item--active': filter === 'starred' }"
-          @click="changeFilter('starred')"
-        >
-          只看 ★
-        </text>
-      </view>
-
-      <view v-if="isInitialLoading" class="state-view">
-        <text>正在加载…</text>
-      </view>
-
-      <view v-else-if="error" class="state-view">
-        <text class="state-view__error">{{ error }}</text>
-        <button class="state-view__button" @click="loadPage">重试</button>
-      </view>
-
-      <EmptyState
-        v-else-if="records.length === 0"
-        :text="filter === 'starred' ? '这个主题还没有 ★ 摘抄' : '这个主题还没有记录'"
-      />
-
-      <template v-else>
-        <RecordCard v-for="record in records" :key="record.id" :record="record" />
-        <view v-if="loadingMore" class="loading-more">
-          <text>正在加载更多…</text>
+      <view class="topic-inner">
+        <view v-if="topic" class="topic-summary">
+          <view>
+            <text class="topic-summary__eyebrow">TOPIC</text>
+            <text class="topic-summary__name">{{ topic.name }}</text>
+            <text class="topic-summary__meta">{{ topicMeta }}</text>
+          </view>
+          <view class="topic-summary__stamp">
+            <AppIcon name="topics" />
+          </view>
         </view>
-        <view v-else-if="!nextCursor" class="list-end">
-          <text>已经到底了</text>
-        </view>
-      </template>
 
-      <view class="safe-area" />
+        <view class="segment-control" aria-label="筛选主题记录">
+          <button
+            class="segment-control__item"
+            :class="{ 'segment-control__item--active': filter === 'all' }"
+            @click="changeFilter('all')"
+          >
+            全部记录
+            <text v-if="topic" class="segment-control__count">{{ topic.recordCount }}</text>
+          </button>
+          <button
+            class="segment-control__item"
+            :class="{ 'segment-control__item--active': filter === 'starred' }"
+            @click="changeFilter('starred')"
+          >
+            <AppIcon name="star" />
+            只看看好
+            <text v-if="topic" class="segment-control__count">{{ topic.starredCount }}</text>
+          </button>
+        </view>
+
+        <view v-if="isInitialLoading" class="page-state">
+          <text class="page-state__title">正在翻阅这个主题</text>
+        </view>
+
+        <view v-else-if="error" class="page-state">
+          <text class="page-state__title">主题没有加载出来</text>
+          <text class="page-state__error">{{ error }}</text>
+          <button class="app-button app-button--primary" @click="loadPage">重试</button>
+        </view>
+
+        <EmptyState
+          v-else-if="records.length === 0"
+          :title="filter === 'starred' ? '还没有标星摘抄' : '这个主题还是空的'"
+          :text="filter === 'starred' ? '在记录里给值得留下的句子标星，它们会出现在这里。' : '从这个主题写下第一条记录吧。'"
+        />
+
+        <template v-else>
+          <view class="record-list">
+            <RecordCard v-for="record in records" :key="record.id" :record="record" />
+          </view>
+          <view v-if="loadingMore" class="loading-more">
+            <text>正在继续加载…</text>
+          </view>
+          <view v-else-if="!nextCursor" class="list-end">
+            <text>这个主题的记录都在这里</text>
+          </view>
+        </template>
+      </view>
     </scroll-view>
-
-    <button class="create-button" aria-label="在该主题下新建记录" @click="createRecord">
-      ＋
-    </button>
-  </view>
+  </AppShell>
 </template>
 
 <style scoped>
-.topic-detail-page {
-  height: 100vh;
-  background: var(--color-bg);
+.topic-inner {
+  width: 100%;
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 28px 42px 56px;
 }
 
-.page-scroll {
-  height: 100vh;
+.topic-summary {
+  display: flex;
+  min-height: 132px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 26px 30px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background:
+    radial-gradient(circle at 88% 20%, rgba(154, 52, 18, 0.09), transparent 35%),
+    var(--color-surface);
+  box-shadow: var(--shadow-card);
 }
 
-.topic-header {
-  margin: 20rpx 24rpx 0;
-  padding: 28rpx;
-  border-radius: 24rpx;
-  background: linear-gradient(135deg, #effbf4, #ffffff);
-}
-
-.topic-header__name {
+.topic-summary__eyebrow {
   display: block;
-  color: var(--color-text);
-  font-size: 38rpx;
+  color: var(--color-accent);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+}
+
+.topic-summary__name {
+  display: block;
+  margin-top: 6px;
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: 30px;
   font-weight: 700;
 }
 
-.topic-header__meta {
+.topic-summary__meta {
   display: block;
-  margin-top: 10rpx;
+  margin-top: 7px;
   color: var(--color-muted);
-  font-size: 23rpx;
+  font-size: 11px;
+}
+
+.topic-summary__stamp {
+  display: flex;
+  width: 58px;
+  height: 58px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: 18px;
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
+.topic-summary__stamp .app-icon {
+  width: 24px;
+  height: 24px;
 }
 
 .segment-control {
-  display: flex;
-  margin: 20rpx 24rpx;
-  padding: 6rpx;
-  border-radius: 18rpx;
-  background: #ececec;
+  display: inline-flex;
+  gap: 4px;
+  margin: 22px 0 20px;
+  padding: 4px;
+  border: 1px solid var(--color-border);
+  border-radius: 13px;
+  background: var(--color-surface-muted);
 }
 
 .segment-control__item {
-  flex: 1;
-  padding: 14rpx 0;
-  border-radius: 14rpx;
-  color: var(--color-muted);
-  font-size: 25rpx;
-  text-align: center;
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--color-muted-strong);
+  font-size: 11px;
+}
+
+.segment-control__item:hover {
+  color: var(--color-ink);
 }
 
 .segment-control__item--active {
-  background: #ffffff;
-  box-shadow: 0 3rpx 10rpx rgba(0, 0, 0, 0.06);
-  color: var(--color-primary);
+  border-color: var(--color-border);
+  background: var(--color-surface);
+  box-shadow: 0 5px 14px rgba(61, 47, 35, 0.06);
+  color: var(--color-accent);
   font-weight: 600;
 }
 
-.state-view {
+.segment-control__item .app-icon {
+  width: 12px;
+  height: 12px;
+}
+
+.segment-control__count {
   display: flex;
-  min-height: 420rpx;
-  flex-direction: column;
+  min-width: 19px;
+  height: 19px;
   align-items: center;
   justify-content: center;
-  gap: 20rpx;
-  padding: 48rpx;
+  border-radius: 50%;
+  background: var(--color-surface-muted);
   color: var(--color-muted);
-  text-align: center;
+  font-size: 9px;
 }
 
-.state-view__error {
-  color: #d94b4b;
-  font-size: 25rpx;
+.record-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
-.state-view__button {
-  min-width: 180rpx;
-  border-radius: 36rpx;
-  background: var(--color-primary);
-  color: #ffffff;
-  font-size: 26rpx;
-  line-height: 72rpx;
+@media (max-width: 980px) {
+  .topic-inner {
+    padding-right: 28px;
+    padding-left: 28px;
+  }
 }
 
-.loading-more,
-.list-end {
-  padding: 26rpx;
-  color: var(--color-muted);
-  font-size: 23rpx;
-  text-align: center;
-}
+@media (max-width: 699px) {
+  .topic-inner {
+    padding: 18px 16px 38px;
+  }
 
-.create-button {
-  position: fixed;
-  right: 32rpx;
-  bottom: 64rpx;
-  width: 104rpx;
-  height: 104rpx;
-  margin: 0;
-  padding: 0;
-  border-radius: 52rpx;
-  background: var(--color-primary);
-  box-shadow: 0 10rpx 24rpx rgba(7, 193, 96, 0.3);
-  color: #ffffff;
-  font-size: 56rpx;
-  line-height: 100rpx;
-}
+  .topic-summary {
+    min-height: 112px;
+    padding: 20px;
+  }
 
-.safe-area {
-  height: calc(150rpx + env(safe-area-inset-bottom));
+  .topic-summary__name {
+    font-size: 24px;
+  }
+
+  .topic-summary__stamp {
+    width: 48px;
+    height: 48px;
+  }
+
+  .segment-control {
+    display: flex;
+    width: 100%;
+  }
+
+  .segment-control__item {
+    flex: 1;
+    justify-content: center;
+  }
 }
 </style>

@@ -25,13 +25,14 @@ describe('YearAxis', () => {
     expect(source).toContain("emit('select', null)")
     expect(source).toContain("emit('select', item.year)")
     expect(source).toContain("props.selected === null ? 'year-all' : 'year-' + props.selected")
-    expect(source).toContain('year-node__dot--active')
+    expect(source).toContain('year-chip--active')
   })
 
   it('定义时间线轴的全局颜色变量', () => {
     const source = readFileSync(appUrl, 'utf8')
 
-    expect(source).toContain('--color-timeline-axis: #d0021b;')
-    expect(source).toContain('--color-timeline-line: #e6e6e6;')
+    expect(source).toContain('--color-timeline-axis: var(--color-accent);')
+    expect(source).toContain('--color-timeline-line: var(--color-border);')
+    expect(source).toContain('--color-accent: #9a3412;')
   })
 })

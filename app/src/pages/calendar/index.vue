@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { onShow } from '@dcloudio/uni-app'
 import { computed, ref } from 'vue'
+import AppIcon from '../../components/AppIcon.vue'
+import AppShell from '../../components/AppShell.vue'
 import EmptyState from '../../components/EmptyState.vue'
 import RecordCard from '../../components/RecordCard.vue'
 import { getCalendar } from '../../api/queries'
@@ -10,6 +12,7 @@ import { useAuthStore } from '../../stores/auth'
 import {
   calendarCells,
   calendarCountMap,
+  formatDateLabel,
   monthOf,
   monthTitle,
   shiftMonth,
@@ -34,6 +37,7 @@ let initialized = false
 
 const cells = computed(() => calendarCells(currentMonth.value))
 const title = computed(() => monthTitle(currentMonth.value))
+const selectedDateLabel = computed(() => formatDateLabel(selectedDate.value))
 const isInitialRecordsLoading = computed(
   () => recordsLoading.value && records.value.length === 0,
 )
@@ -81,7 +85,11 @@ async function loadMonth(month: string, selected: string): Promise<void> {
 
 function changeMonth(delta: number): void {
   const nextMonth = shiftMonth(currentMonth.value, delta)
-  void loadMonth(nextMonth, `${nextMonth}-01`)
+  void loadMonth(nextMonth, nextMonth + '-01')
+}
+
+function goToday(): void {
+  void loadMonth(monthOf(today), today)
 }
 
 function selectDay(date: string): void {
@@ -144,248 +152,421 @@ function retry(): void {
 </script>
 
 <template>
-  <view class="calendar-page">
-    <scroll-view class="page-scroll" scroll-y lower-threshold="80" @scrolltolower="loadMoreRecords">
-      <view class="month-panel">
-        <view class="month-header">
-          <button class="month-switch" aria-label="上个月" @click="changeMonth(-1)">‹</button>
-          <text class="month-title">{{ title }}</text>
-          <button class="month-switch" aria-label="下个月" @click="changeMonth(1)">›</button>
-        </view>
+  <AppShell
+    active="calendar"
+    title="日历"
+    eyebrow="按月翻阅"
+    description="从一个月里挑一天，看看那天留下了什么。"
+  >
+    <template #actions>
+      <button class="app-button" @click="goToday">
+        <AppIcon name="calendar" />
+        今天
+      </button>
+    </template>
 
-        <view class="weekday-row">
-          <text v-for="weekday in ['日', '一', '二', '三', '四', '五', '六']" :key="weekday">
-            {{ weekday }}
-          </text>
-        </view>
-
-        <view class="calendar-grid" :class="{ 'calendar-grid--loading': monthLoading }">
-          <view
-            v-for="cell in cells"
-            :key="cell.date"
-            class="calendar-cell"
-            :class="{
-              'calendar-cell--outside': !cell.inMonth,
-              'calendar-cell--today': cell.date === today,
-              'calendar-cell--selected': cell.date === selectedDate,
-            }"
-            @click="selectDay(cell.date)"
-          >
-            <text class="calendar-cell__day">{{ Number(cell.date.slice(-2)) }}</text>
-            <view v-if="dayCounts[cell.date]" class="calendar-cell__dot" />
+    <scroll-view
+      class="page-scroll"
+      scroll-y
+      lower-threshold="80"
+      @scrolltolower="loadMoreRecords"
+    >
+      <view class="calendar-inner">
+        <view class="calendar-heading">
+          <view>
+            <text class="calendar-heading__month">{{ title }}</text>
+            <text class="calendar-heading__hint">有记录的日子会留下一个暖色圆点</text>
+          </view>
+          <view class="month-switch">
+            <button
+              class="icon-button month-switch__button"
+              aria-label="上个月"
+              @click="changeMonth(-1)"
+            >
+              <AppIcon name="chevron-left" />
+            </button>
+            <button
+              class="icon-button month-switch__button"
+              aria-label="下个月"
+              @click="changeMonth(1)"
+            >
+              <AppIcon name="chevron-right" />
+            </button>
           </view>
         </view>
 
-        <view v-if="monthError" class="month-error">
-          <text>{{ monthError }}</text>
-          <text class="month-error__retry" @click="retry">重试</text>
+        <view class="calendar-layout">
+          <view class="calendar-card" :class="{ 'calendar-card--loading': monthLoading }">
+            <view class="weekday-row" aria-hidden="true">
+              <text v-for="weekday in ['日', '一', '二', '三', '四', '五', '六']" :key="weekday">
+                {{ weekday }}
+              </text>
+            </view>
+
+            <view class="calendar-grid">
+              <button
+                v-for="cell in cells"
+                :key="cell.date"
+                class="calendar-cell"
+                :class="{
+                  'calendar-cell--outside': !cell.inMonth,
+                  'calendar-cell--today': cell.date === today,
+                  'calendar-cell--selected': cell.date === selectedDate,
+                  'calendar-cell--has-record': dayCounts[cell.date],
+                }"
+                :aria-label="cell.date + (dayCounts[cell.date] ? '，' + dayCounts[cell.date] + ' 条记录' : '')"
+                @click="selectDay(cell.date)"
+              >
+                <text class="calendar-cell__day">{{ Number(cell.date.slice(-2)) }}</text>
+                <view v-if="dayCounts[cell.date]" class="calendar-cell__dot" />
+              </button>
+            </view>
+
+            <view class="calendar-legend">
+              <view class="calendar-legend__item">
+                <view class="calendar-legend__dot" />
+                <text>有记录</text>
+              </view>
+              <view class="calendar-legend__item">
+                <view class="calendar-legend__today" />
+                <text>今天</text>
+              </view>
+            </view>
+
+            <view v-if="monthError" class="calendar-error">
+              <text>{{ monthError }}</text>
+              <button class="app-button app-button--small" @click="retry">重试</button>
+            </view>
+          </view>
+
+          <view class="day-panel">
+            <view class="day-panel__header">
+              <view>
+                <text class="day-panel__eyebrow">所选日期</text>
+                <text class="day-panel__title">{{ selectedDateLabel }}</text>
+              </view>
+              <text class="day-panel__count">
+                {{ records.length ? records.length + ' 条' : '空' }}
+              </text>
+            </view>
+
+            <view v-if="isInitialRecordsLoading" class="page-state day-panel__state">
+              <text class="page-state__title">正在找这一天的记录</text>
+            </view>
+
+            <view v-else-if="recordsError" class="page-state day-panel__state">
+              <text class="page-state__error">{{ recordsError }}</text>
+              <button class="app-button app-button--small" @click="loadDay(selectedDate, true)">重试</button>
+            </view>
+
+            <EmptyState
+              v-else-if="records.length === 0"
+              title="这一天很安静"
+              text="没有记录也没关系，空白也是日子的一部分。"
+            />
+
+            <template v-else>
+              <view class="day-panel__records">
+                <RecordCard
+                  v-for="record in records"
+                  :key="record.id"
+                  :record="record"
+                  :show-date="false"
+                />
+              </view>
+              <view v-if="recordsLoadingMore" class="loading-more">
+                <text>正在继续加载…</text>
+              </view>
+              <view v-else-if="!nextCursor" class="list-end">
+                <text>这一天的记录都在这里</text>
+              </view>
+            </template>
+          </view>
         </view>
       </view>
-
-      <view class="selected-header">
-        <text class="selected-header__title">{{ selectedDate }}</text>
-        <text class="selected-header__count">当天记录</text>
-      </view>
-
-      <view v-if="isInitialRecordsLoading" class="list-state">
-        <text>正在加载…</text>
-      </view>
-
-      <view v-else-if="recordsError" class="list-state">
-        <text class="list-state__error">{{ recordsError }}</text>
-        <button class="list-state__retry" @click="loadDay(selectedDate, true)">重试</button>
-      </view>
-
-      <EmptyState
-        v-else-if="records.length === 0"
-        text="这一天还没有记录"
-      />
-
-      <template v-else>
-        <RecordCard v-for="record in records" :key="record.id" :record="record" />
-        <view v-if="recordsLoadingMore" class="loading-more">
-          <text>正在加载更多…</text>
-        </view>
-        <view v-else-if="!nextCursor" class="list-end">
-          <text>已经到底了</text>
-        </view>
-      </template>
-
-      <view class="safe-area" />
     </scroll-view>
-  </view>
+  </AppShell>
 </template>
 
 <style scoped>
-.calendar-page {
-  height: 100vh;
-  background: var(--color-bg);
+.calendar-inner {
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 28px 42px 56px;
 }
 
-.page-scroll {
-  height: 100vh;
-}
-
-.month-panel {
-  margin: 20rpx 24rpx;
-  padding: 24rpx 18rpx 26rpx;
-  border-radius: 24rpx;
-  background: #ffffff;
-  box-shadow: 0 6rpx 24rpx rgba(0, 0, 0, 0.05);
-}
-
-.month-header {
+.calendar-heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 10rpx 18rpx;
+  gap: 20px;
+  margin-bottom: 18px;
 }
 
-.month-title {
-  color: var(--color-text);
-  font-size: 34rpx;
-  font-weight: 600;
+.calendar-heading__month {
+  display: block;
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: 25px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.calendar-heading__hint {
+  display: block;
+  margin-top: 5px;
+  color: var(--color-muted);
+  font-size: 11px;
 }
 
 .month-switch {
-  width: 68rpx;
-  height: 68rpx;
-  margin: 0;
-  padding: 0;
-  border-radius: 34rpx;
-  background: #f3f3f3;
-  color: #555555;
-  font-size: 42rpx;
-  line-height: 64rpx;
+  display: flex;
+  gap: 8px;
+}
+
+.month-switch__button {
+  width: 42px;
+  height: 42px;
+}
+
+.month-switch__button .app-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.calendar-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+  align-items: start;
+  gap: 22px;
+}
+
+.calendar-card,
+.day-panel {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+}
+
+.calendar-card {
+  padding: 22px 24px 18px;
+  transition: opacity 180ms ease;
+}
+
+.calendar-card--loading {
+  opacity: 0.68;
 }
 
 .weekday-row,
 .calendar-grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
 }
 
 .weekday-row {
-  padding-bottom: 10rpx;
+  padding: 0 4px 10px;
   color: var(--color-muted);
-  font-size: 22rpx;
+  font-size: 10px;
+  letter-spacing: 0.08em;
   text-align: center;
 }
 
 .calendar-grid {
-  row-gap: 8rpx;
-  transition: opacity 0.2s;
-}
-
-.calendar-grid--loading {
-  opacity: 0.55;
+  gap: 5px;
 }
 
 .calendar-cell {
   position: relative;
   display: flex;
-  height: 82rpx;
+  min-height: 54px;
   align-items: center;
   justify-content: center;
-  border: 2rpx solid transparent;
-  border-radius: 18rpx;
+  margin: 0;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: transparent;
   color: var(--color-text);
-  font-size: 26rpx;
+  font-family: var(--font-display);
+  font-size: 16px;
+}
+
+.calendar-cell:hover {
+  border-color: var(--color-border);
+  background: var(--color-surface-muted);
 }
 
 .calendar-cell--outside {
-  color: #cccccc;
+  color: color-mix(in srgb, var(--color-muted) 52%, transparent);
 }
 
 .calendar-cell--today {
-  border-color: var(--color-primary);
+  border-color: color-mix(in srgb, var(--color-accent) 46%, var(--color-border));
 }
 
 .calendar-cell--selected {
-  border-color: var(--color-primary);
-  background: var(--color-primary);
-  color: #ffffff;
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  box-shadow: 0 8px 18px rgba(154, 52, 18, 0.18);
+}
+
+.calendar-cell--selected:hover {
+  border-color: var(--color-accent-hover);
+  background: var(--color-accent-hover);
+}
+
+.calendar-cell__day {
+  line-height: 1;
 }
 
 .calendar-cell__dot {
   position: absolute;
-  bottom: 8rpx;
-  width: 8rpx;
-  height: 8rpx;
-  border-radius: 4rpx;
-  background: var(--color-primary);
+  bottom: 7px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--color-star);
 }
 
 .calendar-cell--selected .calendar-cell__dot {
-  background: #ffffff;
+  background: var(--color-surface);
 }
 
-.month-error {
+.calendar-legend {
+  display: flex;
+  gap: 18px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--color-border);
+  color: var(--color-muted);
+  font-size: 10px;
+}
+
+.calendar-legend__item {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 16rpx;
-  padding-top: 18rpx;
-  color: #d94b4b;
-  font-size: 23rpx;
+  gap: 6px;
 }
 
-.month-error__retry {
-  color: var(--color-primary);
+.calendar-legend__dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--color-star);
 }
 
-.selected-header {
+.calendar-legend__today {
+  width: 12px;
+  height: 12px;
+  border: 1px solid var(--color-accent);
+  border-radius: 50%;
+}
+
+.calendar-error {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8rpx 30rpx;
+  gap: 14px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+  font-size: 11px;
 }
 
-.selected-header__title {
-  color: var(--color-text);
-  font-size: 30rpx;
-  font-weight: 600;
+.day-panel {
+  min-height: 520px;
+  padding: 22px;
 }
 
-.selected-header__count {
-  color: var(--color-muted);
-  font-size: 23rpx;
-}
-
-.list-state {
+.day-panel__header {
   display: flex;
-  min-height: 280rpx;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.day-panel__eyebrow {
+  display: block;
+  color: var(--color-muted);
+  font-size: 9px;
+  letter-spacing: 0.13em;
+}
+
+.day-panel__title {
+  display: block;
+  margin-top: 4px;
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.day-panel__count {
+  color: var(--color-muted);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+
+.day-panel__records {
+  display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 18rpx;
-  color: var(--color-muted);
-  text-align: center;
+  gap: 11px;
 }
 
-.list-state__error {
-  color: #d94b4b;
-  font-size: 24rpx;
+.day-panel__state {
+  min-height: 340px;
 }
 
-.list-state__retry {
-  padding: 0 36rpx;
-  border-radius: 32rpx;
-  background: var(--color-primary);
-  color: #ffffff;
-  font-size: 24rpx;
-  line-height: 64rpx;
+.day-panel :deep(.empty-state) {
+  min-height: 340px;
 }
 
-.loading-more,
-.list-end {
-  padding: 26rpx;
-  color: var(--color-muted);
-  font-size: 23rpx;
-  text-align: center;
+@media (max-width: 1050px) {
+  .calendar-layout {
+    grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
+  }
+
+  .calendar-inner {
+    padding-right: 28px;
+    padding-left: 28px;
+  }
 }
 
-.safe-area {
-  height: calc(40rpx + env(safe-area-inset-bottom));
+@media (max-width: 840px) {
+  .calendar-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .day-panel {
+    min-height: 0;
+  }
+
+  .day-panel__state,
+  .day-panel :deep(.empty-state) {
+    min-height: 240px;
+  }
+}
+
+@media (max-width: 699px) {
+  .calendar-inner {
+    padding: 18px 16px 38px;
+  }
+
+  .calendar-cell {
+    min-height: 44px;
+    font-size: 14px;
+  }
+
+  .calendar-card {
+    padding: 16px 14px;
+  }
 }
 </style>

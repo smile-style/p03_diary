@@ -23,43 +23,29 @@ const activeAnchor = computed(() =>
     scroll-with-animation
   >
     <view class="year-axis__track">
-      <view
+      <button
         id="year-all"
-        class="year-node year-node--all"
+        class="year-chip"
+        :class="{ 'year-chip--active': props.selected === null }"
+        aria-label="查看全部年份"
         @click="emit('select', null)"
       >
-        <text
-          class="year-node__year"
-          :class="{ 'year-node__year--active': props.selected === null }"
-        >
-          全部
-        </text>
-        <view
-          class="year-node__dot"
-          :class="{ 'year-node__dot--active': props.selected === null }"
-        />
-        <text class="year-node__count year-node__count--placeholder" />
-      </view>
+        <text class="year-chip__label">全部</text>
+        <text class="year-chip__meta">年份</text>
+      </button>
 
-      <view
+      <button
         v-for="item in items"
         :id="'year-' + item.year"
         :key="item.year"
-        class="year-node"
+        class="year-chip"
+        :class="{ 'year-chip--active': props.selected === item.year }"
+        :aria-label="`查看 ${item.year} 年，共 ${item.count} 条记录`"
         @click="emit('select', item.year)"
       >
-        <text
-          class="year-node__year"
-          :class="{ 'year-node__year--active': props.selected === item.year }"
-        >
-          {{ item.year }}
-        </text>
-        <view
-          class="year-node__dot"
-          :class="{ 'year-node__dot--active': props.selected === item.year }"
-        />
-        <text class="year-node__count">{{ item.count }}</text>
-      </view>
+        <text class="year-chip__label">{{ item.year }}</text>
+        <text class="year-chip__meta">{{ item.count }} 条</text>
+      </button>
     </view>
   </scroll-view>
 </template>
@@ -67,91 +53,65 @@ const activeAnchor = computed(() =>
 <style scoped>
 .year-axis {
   width: 100%;
-  background: #ffffff;
-  border-bottom: 1rpx solid var(--color-timeline-line);
   white-space: nowrap;
 }
 
 .year-axis__track {
   display: inline-flex;
-  align-items: flex-start;
   min-width: 100%;
-  padding: 16rpx 36rpx 18rpx;
+  gap: 8px;
+  padding: 2px 0 4px;
 }
 
-.year-node {
-  position: relative;
-  display: flex;
+.year-chip {
+  display: inline-flex;
+  min-width: 82px;
+  min-height: 54px;
   flex: none;
   flex-direction: column;
-  align-items: center;
-  width: 112rpx;
+  align-items: flex-start;
+  justify-content: center;
+  margin: 0;
+  padding: 8px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 13px;
+  background: var(--color-surface);
+  color: var(--color-muted-strong);
+  text-align: left;
 }
 
-.year-node__year {
-  height: 40rpx;
-  color: var(--color-muted);
-  font-size: 26rpx;
-  line-height: 40rpx;
-  transition: color 0.2s ease;
+.year-chip:hover {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface-muted);
 }
 
-.year-node__year--active {
-  color: var(--color-timeline-axis);
+.year-chip--active {
+  border-color: var(--color-ink);
+  background: var(--color-ink);
+  color: var(--color-surface);
+  box-shadow: 0 8px 22px rgba(38, 33, 25, 0.14);
+}
+
+.year-chip--active:hover {
+  border-color: var(--color-ink);
+  background: var(--color-ink);
+}
+
+.year-chip__label {
+  font-family: var(--font-display);
+  font-size: 17px;
   font-weight: 700;
+  line-height: 1.1;
 }
 
-.year-node__dot {
-  position: relative;
-  width: 36rpx;
-  height: 36rpx;
-  margin: 8rpx 0;
-  border: 4rpx solid var(--color-timeline-axis);
-  border-radius: 50%;
-  background: #ffffff;
-  transition: background 0.2s ease, transform 0.2s ease;
-}
-
-.year-node__dot--active {
-  background: var(--color-timeline-axis);
-  transform: scale(1.08);
-}
-
-.year-node__dot::before,
-.year-node__dot::after {
-  position: absolute;
-  top: 50%;
-  width: 76rpx;
-  height: 4rpx;
-  background: var(--color-timeline-axis);
-  content: '';
-  transform: translateY(-50%);
-}
-
-.year-node__dot::before {
-  right: 100%;
-}
-
-.year-node__dot::after {
-  left: 100%;
-}
-
-.year-node:first-child .year-node__dot::before {
-  display: none;
-}
-
-.year-node:last-child .year-node__dot::after {
-  display: none;
-}
-
-.year-node__count {
-  min-height: 34rpx;
+.year-chip__meta {
+  margin-top: 4px;
   color: var(--color-muted);
-  font-size: 22rpx;
-  line-height: 34rpx;
+  font-size: 10px;
+  letter-spacing: 0.08em;
 }
 
-.year-node__count--placeholder {
-  display: block;
+.year-chip--active .year-chip__meta {
+  color: color-mix(in srgb, var(--color-surface) 72%, transparent);
 }
 </style>

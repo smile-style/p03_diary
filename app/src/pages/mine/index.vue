@@ -8,6 +8,8 @@ import {
   updateCategory,
 } from '../../api/categories'
 import type { Category } from '../../api/types'
+import AppIcon from '../../components/AppIcon.vue'
+import AppShell from '../../components/AppShell.vue'
 import manifest from '../../manifest.json'
 import { DRAFT_KEY_PREFIX, TOKEN_KEY } from '../../config'
 import { useAuthStore } from '../../stores/auth'
@@ -253,273 +255,388 @@ function clearLocalCache(): void {
 </script>
 
 <template>
-  <view class="mine-page">
+  <AppShell
+    active="mine"
+    title="我的"
+    eyebrow="本机与设置"
+    description="管理分类、数据位置、缓存和应用更新。"
+  >
+    <template #actions>
+      <view class="version-badge">
+        <view class="version-badge__dot" />
+        <text>v{{ appVersion }}</text>
+      </view>
+    </template>
+
     <scroll-view class="page-scroll" scroll-y>
-      <view class="account-card">
-        <view class="account-card__avatar">
-          <text>本</text>
-        </view>
-        <view class="account-card__info">
-          <text class="account-card__name">本机单用户</text>
-          <text class="account-card__hint">数据保存在这台电脑上，不联网也能用</text>
-        </view>
-      </view>
-
-      <view class="section-card">
-        <view class="section-header">
-          <view>
-            <text class="section-header__title">分类管理</text>
-            <text class="section-header__hint">用于整理主题</text>
+      <view class="mine-inner">
+        <view class="account-card">
+          <view class="account-card__avatar" aria-hidden="true">
+            <text>本</text>
           </view>
-          <button class="add-button" :disabled="busy" @click="addCategory">
-            新增分类
-          </button>
+          <view class="account-card__info">
+            <text class="account-card__eyebrow">LOCAL FIRST</text>
+            <text class="account-card__name">本机单用户</text>
+            <text class="account-card__hint">记录与图片保存在这台电脑上，不依赖云端账号。</text>
+          </view>
+          <view class="account-card__badge">
+            <view class="account-card__status" />
+            <text>本机数据</text>
+          </view>
         </view>
 
-        <view v-if="loading" class="section-state">
-          <text>正在加载分类…</text>
-        </view>
-
-        <view v-else-if="error" class="section-state">
-          <text class="section-state__error">{{ error }}</text>
-          <button class="retry-button" @click="loadCategories">重试</button>
-        </view>
-
-        <view v-else-if="categories.length === 0" class="section-state">
-          <text>还没有分类，点击“新增分类”开始整理。</text>
-        </view>
-
-        <view v-else class="category-list">
-          <view
-            v-for="category in categories"
-            :key="category.id"
-            class="category-item"
-          >
-            <view class="category-item__main">
-              <text class="category-item__name">{{ category.name }}</text>
-              <text class="category-item__order">排序 {{ category.sortOrder }}</text>
-            </view>
-            <view class="category-item__actions">
-              <button
-                class="text-button"
-                :disabled="busy"
-                @click="renameCategory(category)"
-              >
-                改名
-              </button>
-              <button
-                class="text-button text-button--danger"
-                :disabled="busy"
-                @click="confirmDeleteCategory(category)"
-              >
-                删除
+        <view class="mine-layout">
+          <view class="section-card categories-card">
+            <view class="section-header">
+              <view>
+                <text class="section-header__eyebrow">ORGANIZE</text>
+                <text class="section-header__title">分类管理</text>
+                <text class="section-header__hint">分类用来整理主题，不会影响已有记录。</text>
+              </view>
+              <button class="app-button app-button--small app-button--primary" :disabled="busy" @click="addCategory">
+                <AppIcon name="plus" />
+                新增分类
               </button>
             </view>
+
+            <view v-if="loading" class="section-state">
+              <text>正在加载分类…</text>
+            </view>
+
+            <view v-else-if="error" class="section-state">
+              <text class="section-state__error">{{ error }}</text>
+              <button class="app-button app-button--small" @click="loadCategories">重试</button>
+            </view>
+
+            <view v-else-if="categories.length === 0" class="section-state">
+              <text>还没有分类，新增一个开始整理。</text>
+            </view>
+
+            <view v-else class="category-list">
+              <view
+                v-for="(category, index) in categories"
+                :key="category.id"
+                class="category-item"
+              >
+                <view class="category-item__index">{{ String(index + 1).padStart(2, '0') }}</view>
+                <view class="category-item__main">
+                  <text class="category-item__name">{{ category.name }}</text>
+                  <text class="category-item__order">排序 {{ category.sortOrder }}</text>
+                </view>
+                <view class="category-item__actions">
+                  <button
+                    class="text-button"
+                    :disabled="busy"
+                    @click="renameCategory(category)"
+                  >
+                    改名
+                  </button>
+                  <button
+                    class="text-button text-button--danger"
+                    :disabled="busy"
+                    @click="confirmDeleteCategory(category)"
+                  >
+                    删除
+                  </button>
+                </view>
+              </view>
+            </view>
+          </view>
+
+          <view class="side-stack">
+            <view class="section-card update-card">
+              <view class="update-card__header">
+                <view>
+                  <text class="section-header__eyebrow">DESKTOP</text>
+                  <text class="update-card__title">应用更新</text>
+                </view>
+                <view class="update-card__version">当前 v{{ appVersion }}</view>
+              </view>
+
+              <view v-if="!hasBridge" class="update-card__state">
+                <text class="update-card__hint">桌面版可检查并安装更新。</text>
+              </view>
+
+              <template v-else>
+                <view v-if="updateState.kind === 'idle'" class="update-card__actions">
+                  <text class="update-card__hint">保持应用为最新版本，数据不会受到影响。</text>
+                  <button class="app-button app-button--small" @click="bridgeCall('check', '无法检查更新')">检查更新</button>
+                </view>
+                <view v-else-if="updateState.kind === 'checking'" class="update-card__state">
+                  <text class="update-card__hint">正在检查版本…</text>
+                </view>
+                <view v-else-if="updateState.kind === 'up-to-date'" class="update-card__state">
+                  <text class="update-card__hint">已经是最新版本。</text>
+                </view>
+                <view v-else-if="updateState.kind === 'available'" class="update-card__state">
+                  <text class="update-card__hint">发现新版本 v{{ updateState.version }}</text>
+                  <text v-if="updateState.notes" class="update-card__notes">{{ updateState.notes }}</text>
+                  <button class="app-button app-button--small app-button--primary" @click="bridgeCall('download', '无法下载更新')">立即更新</button>
+                </view>
+                <view v-else-if="updateState.kind === 'downloading'" class="update-card__state">
+                  <view class="progress-track">
+                    <view class="progress-track__bar" :style="{ width: updateState.percent + '%' }" />
+                  </view>
+                  <text class="update-card__hint">下载中 {{ updateState.percent }}%</text>
+                </view>
+                <view v-else-if="updateState.kind === 'downloaded'" class="update-card__state">
+                  <text class="update-card__hint">下载完成，重启后生效。</text>
+                  <button class="app-button app-button--small app-button--primary" @click="applyUpdate">立即重启</button>
+                </view>
+                <view v-else-if="updateState.kind === 'error'" class="update-card__state">
+                  <text class="update-card__error">{{ updateState.message }}</text>
+                  <button class="app-button app-button--small" @click="bridgeCall('check', '无法检查更新')">重试</button>
+                </view>
+              </template>
+            </view>
+
+            <view class="section-card settings-card">
+              <view class="settings-card__header">
+                <text class="section-header__eyebrow">DATA</text>
+                <text class="update-card__title">数据与设置</text>
+              </view>
+
+              <button class="setting-item" @click="openDataFolder">
+                <view class="setting-item__icon">
+                  <AppIcon name="topics" />
+                </view>
+                <view class="setting-item__copy">
+                  <text class="setting-item__title">打开数据文件夹</text>
+                  <text class="setting-item__hint">{{ dataPath }}</text>
+                </view>
+                <AppIcon class="setting-item__arrow" name="chevron-right" />
+              </button>
+
+              <button class="setting-item" @click="clearLocalCache">
+                <view class="setting-item__icon setting-item__icon--danger">
+                  <AppIcon name="trash" />
+                </view>
+                <view class="setting-item__copy">
+                  <text class="setting-item__title">清除本地缓存</text>
+                  <text class="setting-item__hint">删除草稿与登录信息，不删除已有记录。</text>
+                </view>
+                <AppIcon class="setting-item__arrow" name="chevron-right" />
+              </button>
+
+              <view class="setting-item setting-item--about">
+                <view class="setting-item__icon">
+                  <AppIcon name="settings" />
+                </view>
+                <view class="setting-item__copy">
+                  <text class="setting-item__title">关于生活记录</text>
+                  <text class="setting-item__hint">Windows 桌面版 · 本机存储</text>
+                </view>
+                <text class="setting-item__version">v{{ appVersion }}</text>
+              </view>
+            </view>
           </view>
         </view>
       </view>
-
-      <view class="section-card update-card">
-        <view class="update-card__header">
-          <text class="update-card__title">应用更新</text>
-          <text class="update-card__version">v{{ appVersion }}</text>
-        </view>
-
-        <view v-if="!hasBridge" class="update-card__state">
-          <text class="update-card__hint">桌面版可用</text>
-        </view>
-
-        <template v-else>
-          <view v-if="updateState.kind === 'idle'" class="update-card__actions">
-            <button class="update-button" @click="bridgeCall('check', '无法检查更新')">检查更新</button>
-          </view>
-          <view v-else-if="updateState.kind === 'checking'" class="update-card__state">
-            <text class="update-card__hint">正在检查…</text>
-          </view>
-          <view v-else-if="updateState.kind === 'up-to-date'" class="update-card__state">
-            <text class="update-card__hint">已是最新版本</text>
-          </view>
-          <view v-else-if="updateState.kind === 'available'" class="update-card__state">
-            <text class="update-card__hint">发现新版本 v{{ updateState.version }}</text>
-            <text v-if="updateState.notes" class="update-card__notes">{{ updateState.notes }}</text>
-            <button class="update-button" @click="bridgeCall('download', '无法下载更新')">立即更新</button>
-          </view>
-          <view v-else-if="updateState.kind === 'downloading'" class="update-card__state">
-            <text class="update-card__hint">下载中 {{ updateState.percent }}%</text>
-          </view>
-          <view v-else-if="updateState.kind === 'downloaded'" class="update-card__state">
-            <text class="update-card__hint">下载完成，重启后生效</text>
-            <button class="update-button" @click="applyUpdate">立即重启</button>
-          </view>
-          <view v-else-if="updateState.kind === 'error'" class="update-card__state">
-            <text class="update-card__error">{{ updateState.message }}</text>
-            <button class="update-button" @click="bridgeCall('check', '无法检查更新')">重试</button>
-          </view>
-        </template>
-      </view>
-
-      <view class="section-card settings-card">
-        <view class="setting-item" @click="openDataFolder">
-          <view>
-            <text class="setting-item__title">打开数据文件夹</text>
-            <text class="setting-item__hint">{{ dataPath }}</text>
-          </view>
-          <text class="setting-item__arrow">›</text>
-        </view>
-        <view class="setting-divider" />
-        <view class="setting-item" @click="clearLocalCache">
-          <view>
-            <text class="setting-item__title">清除本地缓存</text>
-            <text class="setting-item__hint">删除草稿与登录信息</text>
-          </view>
-          <text class="setting-item__arrow">›</text>
-        </view>
-        <view class="setting-divider" />
-        <view class="setting-item setting-item--about">
-          <text class="setting-item__title">关于</text>
-          <text class="setting-item__version">版本 {{ appVersion }}</text>
-        </view>
-      </view>
-
-      <view class="safe-area" />
     </scroll-view>
-  </view>
+  </AppShell>
 </template>
 
 <style scoped>
-.mine-page {
-  height: 100vh;
-  background: var(--color-bg);
+.mine-inner {
+  width: 100%;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 28px 42px 56px;
 }
 
-.page-scroll {
-  height: 100vh;
+.version-badge {
+  display: flex;
+  min-height: 38px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 13px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-muted-strong);
+  font-size: 11px;
+}
+
+.version-badge__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-success);
 }
 
 .account-card {
   display: flex;
+  min-height: 128px;
   align-items: center;
-  gap: 22rpx;
-  margin: 20rpx 24rpx;
-  padding: 30rpx;
-  border-radius: 24rpx;
-  background: linear-gradient(135deg, #effbf4, #ffffff);
+  gap: 20px;
+  margin-bottom: 22px;
+  padding: 24px 28px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background:
+    radial-gradient(circle at 90% 16%, rgba(63, 107, 84, 0.09), transparent 32%),
+    var(--color-surface);
+  box-shadow: var(--shadow-card);
 }
 
 .account-card__avatar {
   display: flex;
-  width: 96rpx;
-  height: 96rpx;
+  width: 68px;
+  height: 68px;
+  flex: none;
   align-items: center;
   justify-content: center;
-  border: 4rpx solid rgba(7, 193, 96, 0.16);
-  border-radius: 48rpx;
-  background: #ffffff;
-  color: var(--color-primary);
-  font-size: 38rpx;
+  border: 1px solid color-mix(in srgb, var(--color-success) 26%, var(--color-border));
+  border-radius: 50%;
+  background: var(--color-success-soft);
+  color: var(--color-success);
+  font-family: var(--font-display);
+  font-size: 28px;
   font-weight: 700;
 }
 
 .account-card__info {
+  min-width: 0;
   flex: 1;
+}
+
+.account-card__eyebrow,
+.section-header__eyebrow {
+  display: block;
+  color: var(--color-success);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
 }
 
 .account-card__name {
   display: block;
-  color: var(--color-text);
-  font-size: 32rpx;
+  margin-top: 4px;
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: 24px;
   font-weight: 700;
 }
 
 .account-card__hint {
   display: block;
-  margin-top: 8rpx;
+  margin-top: 5px;
   color: var(--color-muted);
-  font-size: 23rpx;
+  font-size: 11px;
+  line-height: 1.65;
+}
+
+.account-card__badge {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 11px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  color: var(--color-muted-strong);
+  font-size: 10px;
+}
+
+.account-card__status {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-success);
+}
+
+.mine-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(270px, 0.8fr);
+  align-items: start;
+  gap: 20px;
+}
+
+.side-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 
 .section-card {
-  margin: 20rpx 24rpx;
-  padding: 26rpx 28rpx;
-  border-radius: 24rpx;
-  background: #ffffff;
-  box-shadow: 0 6rpx 22rpx rgba(0, 0, 0, 0.04);
+  padding: 24px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-soft);
 }
 
 .section-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 20rpx;
-  padding-bottom: 18rpx;
-  border-bottom: 1rpx solid var(--color-border);
+  gap: 20px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--color-border);
 }
 
-.section-header__title {
+.section-header__title,
+.update-card__title {
   display: block;
-  color: var(--color-text);
-  font-size: 30rpx;
+  margin-top: 4px;
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: 21px;
   font-weight: 700;
 }
 
 .section-header__hint {
   display: block;
-  margin-top: 6rpx;
+  max-width: 380px;
+  margin-top: 5px;
   color: var(--color-muted);
-  font-size: 22rpx;
-}
-
-.add-button {
-  flex: none;
-  margin: 0;
-  padding: 0 22rpx;
-  border-radius: 30rpx;
-  background: var(--color-primary);
-  color: #ffffff;
-  font-size: 23rpx;
-  line-height: 58rpx;
-}
-
-.add-button[disabled] {
-  opacity: 0.5;
+  font-size: 10px;
+  line-height: 1.55;
 }
 
 .section-state {
   display: flex;
-  min-height: 180rpx;
+  min-height: 200px;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 16rpx;
+  gap: 12px;
   color: var(--color-muted);
-  font-size: 24rpx;
+  font-size: 12px;
   text-align: center;
 }
 
 .section-state__error {
-  color: #d94b4b;
+  color: var(--color-danger);
 }
 
-.retry-button {
-  min-width: 150rpx;
-  margin: 0;
-  border-radius: 28rpx;
-  background: var(--color-primary);
-  color: #ffffff;
-  font-size: 23rpx;
-  line-height: 56rpx;
+.category-list {
+  display: flex;
+  flex-direction: column;
 }
 
 .category-item {
   display: flex;
+  min-height: 76px;
   align-items: center;
-  gap: 18rpx;
-  padding: 22rpx 0;
-  border-bottom: 1rpx solid var(--color-border);
+  gap: 14px;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .category-item:last-child {
   border-bottom: 0;
+}
+
+.category-item__index {
+  display: flex;
+  width: 34px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-muted);
+  font-family: var(--font-display);
+  font-size: 12px;
+  letter-spacing: 0.05em;
 }
 
 .category-item__main {
@@ -531,145 +648,258 @@ function clearLocalCache(): void {
   display: block;
   overflow: hidden;
   color: var(--color-text);
-  font-size: 28rpx;
+  font-size: 14px;
+  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .category-item__order {
   display: block;
-  margin-top: 6rpx;
+  margin-top: 4px;
   color: var(--color-muted);
-  font-size: 22rpx;
+  font-size: 10px;
 }
 
 .category-item__actions {
   display: flex;
+  flex: none;
   align-items: center;
-  gap: 10rpx;
+  gap: 3px;
 }
 
 .text-button {
-  min-width: 84rpx;
+  position: relative;
+  min-width: 48px;
+  min-height: 34px;
   margin: 0;
-  padding: 0;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 8px;
   background: transparent;
-  color: var(--color-primary);
-  font-size: 23rpx;
-  line-height: 52rpx;
+  color: var(--color-accent);
+  font-size: 11px;
+  line-height: 1;
+}
+
+.text-button::after {
+  position: absolute;
+  inset: -5px;
+  content: '';
+}
+
+.text-button:hover {
+  background: var(--color-accent-soft);
 }
 
 .text-button--danger {
-  color: #d94b4b;
+  color: var(--color-danger);
+}
+
+.text-button--danger:hover {
+  background: var(--color-danger-soft);
 }
 
 .text-button[disabled] {
   opacity: 0.45;
 }
 
-.update-card {
-  padding: 0;
-}
-
-.update-card__header {
+.update-card__header,
+.settings-card__header {
   display: flex;
-  align-items: baseline;
+  align-items: flex-start;
   justify-content: space-between;
-  padding: 28rpx 28rpx 12rpx;
-}
-
-.update-card__title {
-  color: var(--color-text);
-  font-size: 30rpx;
-  font-weight: 600;
+  gap: 15px;
+  margin-bottom: 17px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .update-card__version {
   color: var(--color-muted);
-  font-size: 24rpx;
+  font-size: 10px;
 }
 
 .update-card__state,
 .update-card__actions {
   display: flex;
   flex-direction: column;
-  gap: 16rpx;
-  padding: 8rpx 28rpx 28rpx;
+  align-items: flex-start;
+  gap: 12px;
 }
 
 .update-card__hint {
   color: var(--color-muted);
-  font-size: 24rpx;
+  font-size: 11px;
+  line-height: 1.65;
 }
 
 .update-card__notes {
+  max-height: 132px;
+  overflow: auto;
   color: var(--color-muted);
-  font-size: 22rpx;
-  line-height: 1.5;
+  font-size: 10px;
+  line-height: 1.55;
   white-space: pre-wrap;
 }
 
 .update-card__error {
-  color: #d94b4b;
-  font-size: 24rpx;
+  max-height: 170px;
+  overflow: auto;
+  color: var(--color-danger);
+  font-size: 10px;
+  line-height: 1.55;
+  word-break: break-word;
 }
 
-.update-button {
-  align-self: flex-start;
-  padding: 0 36rpx;
-  border-radius: 32rpx;
-  background: var(--color-primary);
-  color: #ffffff;
-  font-size: 24rpx;
-  line-height: 64rpx;
+.progress-track {
+  width: 100%;
+  height: 5px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--color-surface-muted);
+}
+
+.progress-track__bar {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-accent);
+  transition: width 180ms ease;
 }
 
 .settings-card {
-  padding-top: 0;
-  padding-bottom: 0;
+  padding-bottom: 8px;
+}
+
+.settings-card__header {
+  margin-bottom: 2px;
 }
 
 .setting-item {
   display: flex;
-  min-height: 104rpx;
+  width: 100%;
+  min-height: 72px;
   align-items: center;
-  justify-content: space-between;
-  gap: 20rpx;
+  gap: 12px;
+  margin: 0;
+  padding: 10px 0;
+  border: 0;
+  border-bottom: 1px solid var(--color-border);
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-text);
+  text-align: left;
 }
 
-.setting-item--about {
-  min-height: 92rpx;
+.setting-item:hover .setting-item__title {
+  color: var(--color-accent);
+}
+
+.setting-item:last-child {
+  border-bottom: 0;
+}
+
+.setting-item__icon {
+  display: flex;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: var(--color-surface-muted);
+  color: var(--color-muted-strong);
+}
+
+.setting-item__icon--danger {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+.setting-item__icon .app-icon {
+  width: 15px;
+  height: 15px;
+}
+
+.setting-item__copy {
+  min-width: 0;
+  flex: 1;
 }
 
 .setting-item__title {
   display: block;
   color: var(--color-text);
-  font-size: 27rpx;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .setting-item__hint {
   display: block;
-  margin-top: 5rpx;
+  margin-top: 4px;
+  overflow: hidden;
   color: var(--color-muted);
-  font-size: 21rpx;
+  font-size: 9px;
+  line-height: 1.5;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .setting-item__version,
 .setting-item__arrow {
+  flex: none;
   color: var(--color-muted);
-  font-size: 24rpx;
+  font-size: 10px;
 }
 
 .setting-item__arrow {
-  font-size: 36rpx;
+  width: 14px;
+  height: 14px;
 }
 
-.setting-divider {
-  height: 1rpx;
-  background: var(--color-border);
+@media (max-width: 1050px) {
+  .mine-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .mine-inner {
+    padding-right: 28px;
+    padding-left: 28px;
+  }
 }
 
-.safe-area {
-  height: calc(40rpx + env(safe-area-inset-bottom));
+@media (max-width: 850px) {
+  .mine-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 699px) {
+  .mine-inner {
+    padding: 18px 16px 38px;
+  }
+
+  .account-card {
+    align-items: flex-start;
+    padding: 20px;
+  }
+
+  .account-card__badge {
+    display: none;
+  }
+
+  .section-card {
+    padding: 19px;
+  }
+
+  .category-item {
+    flex-wrap: wrap;
+    padding: 10px 0;
+  }
+
+  .category-item__actions {
+    width: 100%;
+    justify-content: flex-end;
+    padding-left: 48px;
+  }
 }
 </style>

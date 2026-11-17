@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { onShow } from '@dcloudio/uni-app'
 import { ref } from 'vue'
+import AppIcon from '../../components/AppIcon.vue'
+import AppShell from '../../components/AppShell.vue'
 import EmptyState from '../../components/EmptyState.vue'
 import { getStarredExcerpts } from '../../api/queries'
 import type { StarredItem } from '../../api/types'
@@ -80,205 +82,258 @@ function topicName(item: StarredItem): string {
 </script>
 
 <template>
-  <view class="starred-page">
+  <AppShell
+    active="topics"
+    title="我看好的"
+    eyebrow="精选摘抄"
+    description="把值得反复看的句子，从记录里单独留出来。"
+    back
+  >
     <scroll-view class="page-scroll" scroll-y lower-threshold="80" @scrolltolower="loadMore">
-      <view class="page-intro">
-        <text class="page-intro__star">★</text>
-        <view>
-          <text class="page-intro__title">我看好的</text>
-          <text class="page-intro__subtitle">所有记录里被你标星的摘抄</text>
+      <view class="starred-inner">
+        <view class="starred-intro">
+          <view class="starred-intro__mark">
+            <AppIcon name="star" />
+          </view>
+          <view>
+            <text class="starred-intro__eyebrow">FAVORITES</text>
+            <text class="starred-intro__title">那些让你停下来的句子</text>
+            <text class="starred-intro__hint">这里收集所有记录里被你标星的摘抄与想法。</text>
+          </view>
         </view>
-      </view>
 
-      <view v-if="loading" class="state-view">
-        <text>正在加载…</text>
-      </view>
+        <view v-if="loading" class="page-state">
+          <text class="page-state__title">正在整理精选摘抄</text>
+        </view>
 
-      <view v-else-if="error" class="state-view">
-        <text class="state-view__error">{{ error }}</text>
-        <button class="state-view__button" @click="loadPage">重试</button>
-      </view>
+        <view v-else-if="error" class="page-state">
+          <text class="page-state__title">精选摘抄没有加载出来</text>
+          <text class="page-state__error">{{ error }}</text>
+          <button class="app-button app-button--primary" @click="loadPage">重试</button>
+        </view>
 
-      <EmptyState v-else-if="items.length === 0" text="还没有 ★ 摘抄" />
+        <EmptyState
+          v-else-if="items.length === 0"
+          title="还没有标星摘抄"
+          text="在记录里遇到值得留下的句子时，点亮那颗星，它会来到这里。"
+        />
 
-      <template v-else>
-        <view v-for="item in items" :key="item.excerpt.id" class="starred-card">
-          <view class="starred-card__meta">
-            <text class="starred-card__date">
-              {{ formatDateLabel(item.record.recordDate) }}
-            </text>
-            <text class="starred-card__topic">{{ topicName(item) }}</text>
+        <template v-else>
+          <view class="starred-grid">
+            <article
+              v-for="item in items"
+              :key="item.excerpt.id"
+              class="starred-card"
+            >
+              <view class="starred-card__meta">
+                <text class="starred-card__date">
+                  {{ formatDateLabel(item.record.recordDate) }}
+                </text>
+                <text class="starred-card__topic">{{ topicName(item) }}</text>
+              </view>
+
+              <view class="starred-card__quote">
+                <AppIcon class="starred-card__mark" name="star" />
+                <text class="starred-card__quote-text">{{ item.excerpt.quote }}</text>
+              </view>
+
+              <text v-if="item.excerpt.thought" class="starred-card__thought">
+                {{ item.excerpt.thought }}
+              </text>
+
+              <button class="record-link" @click="openRecord(item.record.id)">
+                查看原记录
+                <AppIcon name="chevron-right" />
+              </button>
+            </article>
           </view>
 
-          <view class="starred-card__quote">
-            <text class="starred-card__mark">★</text>
-            <text class="starred-card__quote-text">{{ item.excerpt.quote }}</text>
+          <view v-if="loadingMore" class="loading-more">
+            <text>正在继续加载…</text>
           </view>
-
-          <text v-if="item.excerpt.thought" class="starred-card__thought">
-            {{ item.excerpt.thought }}
-          </text>
-
-          <button class="record-link" @click="openRecord(item.record.id)">
-            查看原记录 ›
-          </button>
-        </view>
-
-        <view v-if="loadingMore" class="loading-more">
-          <text>正在加载更多…</text>
-        </view>
-        <view v-else-if="!nextCursor" class="list-end">
-          <text>已经到底了</text>
-        </view>
-      </template>
-
-      <view class="safe-area" />
+          <view v-else-if="!nextCursor" class="list-end">
+            <text>所有精选摘抄都在这里</text>
+          </view>
+        </template>
+      </view>
     </scroll-view>
-  </view>
+  </AppShell>
 </template>
 
 <style scoped>
-.starred-page {
-  height: 100vh;
-  background: var(--color-bg);
+.starred-inner {
+  width: 100%;
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 28px 42px 56px;
 }
 
-.page-scroll {
-  height: 100vh;
-}
-
-.page-intro {
+.starred-intro {
   display: flex;
   align-items: center;
-  gap: 18rpx;
-  margin: 20rpx 24rpx;
-  padding: 26rpx 30rpx;
-  border-radius: 24rpx;
-  background: linear-gradient(135deg, #fff8e8, #ffffff);
+  gap: 18px;
+  margin-bottom: 24px;
+  padding: 22px 25px;
+  border: 1px solid color-mix(in srgb, var(--color-star) 24%, var(--color-border));
+  border-radius: var(--radius-card);
+  background:
+    radial-gradient(circle at 92% 20%, rgba(180, 83, 9, 0.12), transparent 34%),
+    var(--color-star-soft);
 }
 
-.page-intro__star {
+.starred-intro__mark {
+  display: flex;
+  width: 54px;
+  height: 54px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: 17px;
+  background: var(--color-surface);
   color: var(--color-star);
-  font-size: 52rpx;
+  box-shadow: var(--shadow-soft);
 }
 
-.page-intro__title {
+.starred-intro__mark .app-icon {
+  width: 22px;
+  height: 22px;
+}
+
+.starred-intro__eyebrow {
   display: block;
-  color: var(--color-text);
-  font-size: 32rpx;
+  color: var(--color-star);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+}
+
+.starred-intro__title {
+  display: block;
+  margin-top: 4px;
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: 21px;
   font-weight: 700;
 }
 
-.page-intro__subtitle {
+.starred-intro__hint {
   display: block;
-  margin-top: 6rpx;
+  margin-top: 5px;
   color: var(--color-muted);
-  font-size: 22rpx;
+  font-size: 10px;
+}
+
+.starred-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 13px;
 }
 
 .starred-card {
-  margin: 0 24rpx 18rpx;
-  padding: 26rpx 28rpx;
-  border-radius: 22rpx;
-  background: #ffffff;
-  box-shadow: 0 5rpx 20rpx rgba(0, 0, 0, 0.04);
+  padding: 20px;
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-soft);
 }
 
 .starred-card__meta {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
 }
 
 .starred-card__date {
   color: var(--color-muted);
-  font-size: 23rpx;
+  font-family: var(--font-display);
+  font-size: 11px;
 }
 
 .starred-card__topic {
-  padding: 6rpx 15rpx;
-  border-radius: 18rpx;
-  background: rgba(7, 193, 96, 0.1);
-  color: var(--color-primary);
-  font-size: 22rpx;
+  max-width: 48%;
+  overflow: hidden;
+  color: var(--color-accent);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .starred-card__quote {
   display: flex;
   align-items: flex-start;
-  margin-top: 22rpx;
-  padding: 20rpx 22rpx;
-  border-left: 6rpx solid var(--color-star);
-  border-radius: 8rpx;
-  background: #fffbf2;
+  gap: 9px;
+  margin-top: 16px;
+  padding: 15px 16px;
+  border-left: 2px solid var(--color-star);
+  border-radius: 0 10px 10px 0;
+  background: var(--color-star-soft);
 }
 
 .starred-card__mark {
-  margin-right: 8rpx;
+  width: 12px;
+  height: 12px;
+  margin-top: 6px;
   color: var(--color-star);
-  font-size: 28rpx;
 }
 
 .starred-card__quote-text {
+  min-width: 0;
   flex: 1;
-  color: #333333;
-  font-size: 28rpx;
-  line-height: 1.65;
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-size: 15px;
+  line-height: 1.75;
 }
 
 .starred-card__thought {
   display: block;
-  margin-top: 16rpx;
+  margin-top: 13px;
   color: var(--color-muted);
-  font-size: 25rpx;
-  line-height: 1.6;
+  font-size: 11px;
+  line-height: 1.7;
 }
 
 .record-link {
-  margin: 20rpx 0 0 auto;
-  padding: 0;
-  background: transparent;
-  color: var(--color-primary);
-  font-size: 24rpx;
-  line-height: 48rpx;
-  text-align: right;
-}
-
-.state-view {
-  display: flex;
-  min-height: 420rpx;
-  flex-direction: column;
+  display: inline-flex;
+  min-height: 44px;
   align-items: center;
-  justify-content: center;
-  gap: 20rpx;
-  padding: 48rpx;
-  color: var(--color-muted);
-  text-align: center;
+  gap: 4px;
+  margin: 12px 0 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-accent);
+  font-size: 10px;
 }
 
-.state-view__error {
-  color: #d94b4b;
-  font-size: 25rpx;
+.record-link .app-icon {
+  width: 12px;
+  height: 12px;
 }
 
-.state-view__button {
-  min-width: 180rpx;
-  border-radius: 36rpx;
-  background: var(--color-primary);
-  color: #ffffff;
-  font-size: 26rpx;
-  line-height: 72rpx;
+@media (max-width: 820px) {
+  .starred-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
-.loading-more,
-.list-end {
-  padding: 26rpx;
-  color: var(--color-muted);
-  font-size: 23rpx;
-  text-align: center;
+@media (max-width: 980px) {
+  .starred-inner {
+    padding-right: 28px;
+    padding-left: 28px;
+  }
 }
 
-.safe-area {
-  height: calc(40rpx + env(safe-area-inset-bottom));
+@media (max-width: 699px) {
+  .starred-inner {
+    padding: 18px 16px 38px;
+  }
+
+  .starred-intro {
+    align-items: flex-start;
+    padding: 18px;
+  }
 }
 </style>

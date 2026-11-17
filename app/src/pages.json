@@ -2,57 +2,88 @@
   "pages": [
     {
       "path": "pages/timeline/index",
-      "style": { "navigationBarTitleText": "时间线" }
+      "style": {
+        "navigationBarTitleText": "时间线"
+      }
     },
     {
       "path": "pages/calendar/index",
-      "style": { "navigationBarTitleText": "日历" }
+      "style": {
+        "navigationBarTitleText": "日历"
+      }
     },
     {
       "path": "pages/topics/index",
-      "style": { "navigationBarTitleText": "主题" }
+      "style": {
+        "navigationBarTitleText": "主题"
+      }
     },
     {
       "path": "pages/mine/index",
-      "style": { "navigationBarTitleText": "我的" }
+      "style": {
+        "navigationBarTitleText": "我的"
+      }
     },
     {
       "path": "pages/record/edit",
-      "style": { "navigationBarTitleText": "记录" }
+      "style": {
+        "navigationBarTitleText": "记录"
+      }
     },
     {
       "path": "pages/record/detail",
-      "style": { "navigationBarTitleText": "记录详情" }
+      "style": {
+        "navigationBarTitleText": "记录详情"
+      }
     },
     {
       "path": "pages/topic/detail",
-      "style": { "navigationBarTitleText": "主题详情" }
+      "style": {
+        "navigationBarTitleText": "主题详情"
+      }
     },
     {
       "path": "pages/tag/detail",
-      "style": { "navigationBarTitleText": "标签" }
+      "style": {
+        "navigationBarTitleText": "标签"
+      }
     },
     {
       "path": "pages/starred/index",
-      "style": { "navigationBarTitleText": "我看好的" }
+      "style": {
+        "navigationBarTitleText": "我看好的"
+      }
     }
   ],
   "globalStyle": {
     "navigationBarTextStyle": "black",
+    "navigationStyle": "custom",
     "navigationBarTitleText": "生活记录",
     "navigationBarBackgroundColor": "#ffffff",
-    "backgroundColor": "#f7f7f7"
+    "backgroundColor": "#f3efe8"
   },
   "tabBar": {
-    "color": "#8a8a8a",
-    "selectedColor": "#07c160",
-    "backgroundColor": "#ffffff",
-    "borderStyle": "white",
+    "color": "#756b60",
+    "selectedColor": "#9a3412",
+    "backgroundColor": "#fffcf7",
+    "borderStyle": "black",
     "list": [
-      { "pagePath": "pages/timeline/index", "text": "时间线" },
-      { "pagePath": "pages/calendar/index", "text": "日历" },
-      { "pagePath": "pages/topics/index", "text": "主题" },
-      { "pagePath": "pages/mine/index", "text": "我的" }
+      {
+        "pagePath": "pages/timeline/index",
+        "text": "时间线"
+      },
+      {
+        "pagePath": "pages/calendar/index",
+        "text": "日历"
+      },
+      {
+        "pagePath": "pages/topics/index",
+        "text": "主题"
+      },
+      {
+        "pagePath": "pages/mine/index",
+        "text": "我的"
+      }
     ]
   }
 }
