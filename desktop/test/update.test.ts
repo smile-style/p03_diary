@@ -4,16 +4,18 @@ vi.mock('electron', () => ({
   ipcMain: { handle: vi.fn(), on: vi.fn() },
   BrowserWindow: { getAllWindows: vi.fn(() => []) },
 }))
-vi.mock('electron-updater', () => ({
-  autoUpdater: {
+vi.mock('electron-updater', () => {
+  const autoUpdater = {
     on: vi.fn(),
     checkForUpdates: vi.fn(),
     downloadUpdate: vi.fn(),
     quitAndInstall: vi.fn(),
     autoDownload: true,
     autoInstallOnAppQuit: true,
-  },
-}))
+  }
+
+  return { autoUpdater, default: { autoUpdater } }
+})
 
 const { autoUpdaterQuitAndInstall, mapUpdaterEvent, registerUpdateIpc, startSilentCheck } =
   await import('../src/update.js')

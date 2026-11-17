@@ -1,5 +1,9 @@
 import { BrowserWindow, ipcMain } from 'electron'
-import { autoUpdater } from 'electron-updater'
+import electronUpdater from 'electron-updater'
+
+function getAutoUpdater() {
+  return electronUpdater.autoUpdater
+}
 
 export type UpdateState =
   | { kind: 'idle' }
@@ -88,7 +92,7 @@ export function registerUpdateIpc(opts: {
       return state
     }
 
-    await autoUpdater.checkForUpdates()
+    await getAutoUpdater().checkForUpdates()
     return state
   })
 
@@ -97,7 +101,7 @@ export function registerUpdateIpc(opts: {
       return state
     }
 
-    await autoUpdater.downloadUpdate()
+    await getAutoUpdater().downloadUpdate()
     return state
   })
 
@@ -108,11 +112,11 @@ export function registerUpdateIpc(opts: {
     return
   }
 
-  autoUpdater.autoDownload = false
-  autoUpdater.autoInstallOnAppQuit = true
+  getAutoUpdater().autoDownload = false
+  getAutoUpdater().autoInstallOnAppQuit = true
 
   for (const event of UPDATE_EVENTS) {
-    autoUpdater.on(event, (payload: unknown) => {
+    getAutoUpdater().on(event, (payload: unknown) => {
       state = mapUpdaterEvent(event, payload, state)
       broadcast(state)
     })
@@ -124,9 +128,9 @@ export function startSilentCheck(): void {
     return
   }
 
-  void autoUpdater.checkForUpdates().catch(() => undefined)
+  void getAutoUpdater().checkForUpdates().catch(() => undefined)
 }
 
 export function autoUpdaterQuitAndInstall(): void {
-  autoUpdater.quitAndInstall()
+  getAutoUpdater().quitAndInstall()
 }
