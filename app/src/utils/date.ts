@@ -51,3 +51,12 @@ export function formatDateLabel(date: string, today: string = todayLocal()): str
   const label = `${month}月${day}日`
   return date.slice(0, 4) === today.slice(0, 4) ? label : `${year}年${label}`
 }
+export function formatFullDateLabel(date: string): string {
+  const [year, month, day] = date.split('-').map(Number)
+  return `${year}年${month}月${day}日`
+}
+
+export function dayChipParts(date: string): { day: string; month: string; year: string } {
+  const [year, month, day] = date.split('-').map(Number)
+  return { day: String(day), month: `${month}月`, year: String(year) }
+}

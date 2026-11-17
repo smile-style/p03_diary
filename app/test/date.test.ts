@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   calendarCells,
   calendarCountMap,
+  dayChipParts,
   formatDateLabel,
+  formatFullDateLabel,
   monthTitle,
   monthOf,
   shiftMonth,
@@ -53,5 +55,15 @@ describe('date utilities', () => {
     expect(formatDateLabel('2026-11-06', '2026-11-06')).toBe('11月6日')
     expect(formatDateLabel('2025-12-31', '2026-11-06')).toBe('2025年12月31日')
     expect(formatDateLabel('2026-11-06')).toBe('11月6日')
+  })
+
+  it('formats an explicit full date label', () => {
+    expect(formatFullDateLabel('2026-11-06')).toBe('2026年11月6日')
+    expect(formatFullDateLabel('2025-01-09')).toBe('2025年1月9日')
+  })
+
+  it('builds day chip parts for the axis', () => {
+    expect(dayChipParts('2026-11-16')).toEqual({ day: '16', month: '11月', year: '2026' })
+    expect(dayChipParts('2025-01-09')).toEqual({ day: '9', month: '1月', year: '2025' })
   })
 })

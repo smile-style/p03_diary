@@ -87,3 +87,8 @@ export type RecordFilter = {
   q?: string
   starred?: boolean
 }
+
+export type RecordDayCount = {
+  date: string
+  count: number
+}

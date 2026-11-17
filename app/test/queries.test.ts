@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { getYears, getYearMonths } from '../src/api/queries'
+import { getRecordDays, getYearMonths, getYears } from '../src/api/queries'
 import { listRecords } from '../src/api/records'
 import { setToken } from '../src/api/client'
 
@@ -63,5 +63,16 @@ describe('年份相关请求', () => {
     const url = request.mock.calls[0][0].url as string
     expect(url).not.toContain('year=')
     expect(url).not.toContain('month=')
+  })
+})
+
+describe('按天聚合请求', () => {
+  it('getRecordDays 请求 /record-days', async () => {
+    const request = installUni({ items: [{ date: '2026-11-16', count: 4 }] })
+
+    const result = await getRecordDays()
+
+    expect(result.items[0]).toEqual({ date: '2026-11-16', count: 4 })
+    expect(request.mock.calls[0][0].url).toContain('/record-days')
   })
 })
