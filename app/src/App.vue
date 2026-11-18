@@ -33,8 +33,6 @@ page {
   --color-focus: #c2410c;
   --color-primary: var(--color-accent);
   --color-star-old: var(--color-star);
-  --color-timeline-axis: var(--color-accent);
-  --color-timeline-line: var(--color-border);
   --font-ui: "Microsoft YaHei UI", "PingFang SC", "Noto Sans CJK SC", sans-serif;
   --font-display: "Songti SC", "STSong", "Source Han Serif SC", "Noto Serif CJK SC", serif;
   --shadow-card: 0 16px 44px rgba(61, 47, 35, 0.065);

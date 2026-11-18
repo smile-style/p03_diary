@@ -22,15 +22,3 @@ export async function getStarredExcerpts(
     query: { cursor: params.cursor, limit: params.limit },
   })
 }
-
-export async function getYears(): Promise<{ items: { year: string; count: number }[] }> {
-  return request<{ items: { year: string; count: number }[] }>('/years')
-}
-
-export async function getYearMonths(
-  year: string,
-): Promise<{ items: { month: string; count: number }[] }> {
-  return request<{ items: { month: string; count: number }[] }>('/year-months', {
-    query: { year },
-  })
-}
