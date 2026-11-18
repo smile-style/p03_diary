@@ -95,36 +95,61 @@ describe('timeline store', () => {
     expect(listRecords).toHaveBeenCalledWith({ month: '2025-07', limit: 20 })
     expect(store.filter.month).toBe('2025-07')
   })
+
+  it('把日期透传到列表请求', async () => {
+    vi.mocked(listRecords).mockResolvedValueOnce({ items: [], nextCursor: null })
+    const store = useTimelineStore()
+
+    await store.reset({ date: '2026-11-16' })
+
+    expect(listRecords).toHaveBeenCalledWith({ date: '2026-11-16', limit: 20 })
+    expect(store.filter.date).toBe('2026-11-16')
+  })
 })
 
 describe('timeline page integration', () => {
-  it('使用服务端年份与月份聚合，并按月分组请求后的记录', () => {
+  it('用日粒度时间轴选择日期，请求只按 date 过滤', () => {
     const source = readFileSync(timelinePageUrl, 'utf8')
 
-    expect(source).toContain("import YearAxis from '../../components/YearAxis.vue'")
-    expect(source).toContain("import { getYearMonths, getYears } from '../../api/queries'")
-    expect(source).toContain("import { groupByMonth } from '../../utils/timeline-groups'")
-    expect(source).toContain('<YearAxis')
-    expect(source).toContain(':items="years"')
-    expect(source).toContain(':selected="selectedYear"')
-    expect(source).toContain('@select="selectYear"')
-    expect(source).toContain('const groups = computed(() => groupByMonth(timeline.items))')
-    expect(source).toContain('{{ monthCount(group.month) }} 条')
-    expect(source).toContain('<AppShell')
-    expect(source).toContain('active="timeline"')
-    expect(source).toContain('class="timeline-inner"')
+    expect(source).toContain("import DayAxis from '../../components/DayAxis.vue'")
+    expect(source).toContain("import { getRecordDays } from '../../api/queries'")
+    expect(source).toContain("import { formatFullDateLabel } from '../../utils/date'")
+    expect(source).toContain('<DayAxis')
+    expect(source).toContain(':items="days"')
+    expect(source).toContain(':selected="selectedDate"')
+    expect(source).toContain('@select="selectDay"')
+    expect(source).toContain('async function selectDay')
+    expect(source).toContain('timeline.reset({ date })')
+    expect(source).not.toContain('YearAxis')
+    expect(source).not.toContain('groupByMonth')
+    expect(source).not.toContain('month-group')
   })
 
-  it('月份切换重新走服务端列表请求，并在全部年份时禁止月份筛选', () => {
+  it('搜索与选日互斥：点日期清空搜索，搜索时清空选中日期', () => {
     const source = readFileSync(timelinePageUrl, 'utf8')
-    const toggleMonthSource = source.slice(
-      source.indexOf('async function toggleMonth'),
-      source.indexOf('function currentFilterNoMonth'),
+    const selectDaySource = source.slice(
+      source.indexOf('async function selectDay'),
+      source.indexOf('async function submitSearch'),
+    )
+    const submitSearchSource = source.slice(
+      source.indexOf('async function submitSearch'),
+      source.indexOf('async function clearSearch'),
     )
 
-    expect(toggleMonthSource).toContain('if (!selectedYear.value) return')
-    expect(toggleMonthSource).toContain('await timeline.reset({')
-    expect(toggleMonthSource).toContain('month,')
-    expect(toggleMonthSource).not.toContain('timeline.items.filter')
+    expect(selectDaySource).toContain('activeSearch.value = null')
+    expect(selectDaySource).toContain("searchText.value = ''")
+    expect(selectDaySource).toContain('selectedDate.value = date')
+    expect(submitSearchSource).toContain('selectedDate.value = null')
+  })
+
+  it('没有记录时不发带空值的 date 过滤', () => {
+    const source = readFileSync(timelinePageUrl, 'utf8')
+    const filterSource = source.slice(
+      source.indexOf('function currentFilter'),
+      source.indexOf('onShow(async'),
+    )
+
+    expect(filterSource).toContain('if (selectedDate.value)')
+    expect(filterSource).not.toContain("date: ''")
   })
 })
