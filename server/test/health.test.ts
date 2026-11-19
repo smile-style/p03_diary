@@ -176,4 +176,35 @@ describe('server health', () => {
       expect(res.statusCode).toBe(200)
     }
   })
+
+  it('自定义解析器不放过畸形 JSON', async () => {
+    const { app } = await createTestApp()
+    apps.push(app)
+    app.post('/test-body', async (request) => request.body)
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/test-body',
+      headers: { 'content-type': 'application/json' },
+      payload: '{"broken',
+    })
+
+    expect(res.statusCode).toBe(400)
+    expect(res.json().error.code).toBe('VALIDATION')
+  })
+
+  it('自定义解析器仍拦截原型污染', async () => {
+    const { app } = await createTestApp()
+    apps.push(app)
+    app.post('/test-body', async (request) => request.body)
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/test-body',
+      headers: { 'content-type': 'application/json' },
+      payload: '{"__proto__":{"polluted":true}}',
+    })
+
+    expect(res.statusCode).toBe(400)
+  })
 })
