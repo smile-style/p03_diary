@@ -556,3 +556,27 @@ describe('records', () => {
     expect(body.links).toEqual(['https://example.com/a'])
   })
 })
+
+describe('DELETE /records/:id 兼容 uni.request 的默认请求头', () => {
+  it('带 content-type: application/json 且不带 body 时仍能删除', async () => {
+    const { app, deps } = await createTestApp()
+    apps.push(app)
+    const token = await loginAs(app, deps, 'delete-with-json-header')
+
+    const created = await request(app, token, {
+      method: 'POST',
+      url: '/records',
+      payload: recordPayload(),
+    })
+    const id = created.json<RecordViewBody>().id
+
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/records/${id}`,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+    })
+
+    expect(res.statusCode).toBe(204)
+    expect(await deps.db.selectFrom('records').select('id').where('id', '=', id).execute()).toEqual([])
+  })
+})

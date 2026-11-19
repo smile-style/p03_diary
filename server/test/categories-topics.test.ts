@@ -574,3 +574,43 @@ describe('per-user isolation and authentication', () => {
     ).toEqual({ id: topic.id, name: '受保护主题', category_id: category.id })
   })
 })
+
+describe('DELETE 兼容 uni.request 的默认请求头', () => {
+  it('主题：带 content-type: application/json 且不带 body 时仍能删除', async () => {
+    const { app, deps } = await createTestApp()
+    apps.push(app)
+    const token = await loginAs(app, deps, 'topic-delete-json-header')
+    const topic = await deps.db
+      .insertInto('topics')
+      .values({ user_id: app.jwt.decode<{ sub: string }>(token)!.sub, category_id: null, name: '待删主题', created_at: new Date().toISOString() })
+      .returning(['id'])
+      .executeTakeFirstOrThrow()
+
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/topics/${topic.id}`,
+      headers: { ...authHeader(token), 'content-type': 'application/json' },
+    })
+
+    expect(res.statusCode).toBe(204)
+  })
+
+  it('分类：带 content-type: application/json 且不带 body 时仍能删除', async () => {
+    const { app, deps } = await createTestApp()
+    apps.push(app)
+    const token = await loginAs(app, deps, 'category-delete-json-header')
+    const category = await deps.db
+      .insertInto('categories')
+      .values({ user_id: app.jwt.decode<{ sub: string }>(token)!.sub, name: '待删分类', created_at: new Date().toISOString() })
+      .returning(['id'])
+      .executeTakeFirstOrThrow()
+
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/categories/${category.id}`,
+      headers: { ...authHeader(token), 'content-type': 'application/json' },
+    })
+
+    expect(res.statusCode).toBe(204)
+  })
+})
