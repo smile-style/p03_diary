@@ -144,4 +144,36 @@ describe('server health', () => {
     expect(res.statusCode).toBe(200)
     expect(res.json()).toEqual({ ok: true })
   })
+
+  it('声明 application/json 但没有 body 时不报 400', async () => {
+    const { app } = await createTestApp()
+    apps.push(app)
+    app.delete('/test-empty-delete', async () => ({ ok: true }))
+
+    const res = await app.inject({
+      method: 'DELETE',
+      url: '/test-empty-delete',
+      headers: { 'content-type': 'application/json' },
+    })
+
+    expect(res.statusCode).toBe(200)
+  })
+
+  it('带 charset 的 application/json 空 body 同样不报 400', async () => {
+    const { app } = await createTestApp()
+    apps.push(app)
+    app.delete('/test-empty-delete', async () => ({ ok: true }))
+
+    for (const contentType of [
+      'application/json; charset=utf-8',
+      'application/json;charset=UTF-8',
+    ]) {
+      const res = await app.inject({
+        method: 'DELETE',
+        url: '/test-empty-delete',
+        headers: { 'content-type': contentType },
+      })
+      expect(res.statusCode).toBe(200)
+    }
+  })
 })

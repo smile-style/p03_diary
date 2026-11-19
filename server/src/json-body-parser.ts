@@ -1,3 +1,5 @@
+import type { FastifyRequest } from 'fastify'
+
 export type BodyParserDone = (error: Error | null, body?: unknown) => void
 
 /**
@@ -5,9 +7,9 @@ export type BodyParserDone = (error: Error | null, body?: unknown) => void
  * 非空 body 一律交回 Fastify 默认解析器，保留畸形 JSON 报错与原型污染防护。
  */
 export function createJsonBodyParser(
-  defaultParser: (request: unknown, body: string, done: BodyParserDone) => void,
+  defaultParser: (request: FastifyRequest, body: string, done: BodyParserDone) => void,
 ) {
-  return (request: unknown, body: string, done: BodyParserDone): void => {
+  return (request: FastifyRequest, body: string, done: BodyParserDone): void => {
     if (body === '' || body === undefined || body === null) {
       done(null, undefined)
       return

@@ -15,6 +15,7 @@ import { AppError } from './errors.js'
 import { registerImageRoutes } from './images/routes.js'
 import { registerQueryRoutes } from './queries/routes.js'
 import { registerRecordRoutes } from './records/routes.js'
+import { createJsonBodyParser } from './json-body-parser.js'
 
 type BuildAppOptions = {
   logger?: FastifyServerOptions['logger']
@@ -98,6 +99,12 @@ export async function buildApp(
     })
   })
 
+
+  app.addContentTypeParser(
+    'application/json',
+    { parseAs: 'string' },
+    createJsonBodyParser(app.getDefaultJsonParser('error', 'error')),
+  )
 
   await app.register(multipart, {
     throwFileSizeLimit: true,
