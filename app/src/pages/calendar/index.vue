@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onShow } from '@dcloudio/uni-app'
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import AppIcon from '../../components/AppIcon.vue'
 import AppShell from '../../components/AppShell.vue'
 import EmptyState from '../../components/EmptyState.vue'
@@ -31,6 +31,7 @@ const recordsLoading = ref(false)
 const recordsLoadingMore = ref(false)
 const monthError = ref<string | null>(null)
 const recordsError = ref<string | null>(null)
+const recordsScrollTop = ref(0)
 let monthRequestVersion = 0
 let recordsRequestVersion = 0
 let initialized = false
@@ -62,12 +63,19 @@ function messageOf(value: unknown): string {
   return value instanceof Error && value.message ? value.message : '加载失败'
 }
 
+async function resetRecordsScroll(): Promise<void> {
+  recordsScrollTop.value = 1
+  await nextTick()
+  recordsScrollTop.value = 0
+}
+
 async function loadMonth(month: string, selected: string): Promise<void> {
   const version = ++monthRequestVersion
   monthLoading.value = true
   monthError.value = null
   currentMonth.value = month
   selectedDate.value = selected
+  void resetRecordsScroll()
 
   try {
     const [calendar] = await Promise.all([
@@ -107,6 +115,7 @@ async function loadDay(date: string, clearImmediately: boolean): Promise<void> {
   if (clearImmediately) {
     records.value = []
     nextCursor.value = null
+    void resetRecordsScroll()
   }
   recordsLoading.value = true
   recordsError.value = null
@@ -253,6 +262,7 @@ function retry(): void {
             <scroll-view
               class="day-panel__scroll"
               scroll-y
+              :scroll-top="recordsScrollTop"
               lower-threshold="80"
               @scrolltolower="loadMoreRecords"
             >

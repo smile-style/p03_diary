@@ -36,4 +36,27 @@ describe('calendar page scrolling', () => {
     expect(mobile).toMatch(/\.calendar-layout\s*\{\s*grid-template-rows: none;/)
     expect(mobile).toMatch(/\.day-panel__scroll\s*\{\s*height: auto;/)
   })
+  it('切换日期或月份后记录区回到顶部', () => {
+    const source = readFileSync(pageUrl, 'utf8')
+    const resetStart = source.indexOf('async function resetRecordsScroll')
+    const resetEnd = source.indexOf('\nasync function', resetStart + 1)
+    const reset = source.slice(resetStart, resetEnd)
+
+    expect(source).toContain(':scroll-top="recordsScrollTop"')
+    expect(source).toContain('const recordsScrollTop = ref(0)')
+    expect(reset).toMatch(/recordsScrollTop\.value = 1/)
+    expect(reset).toMatch(/await nextTick\(\)/)
+    expect(reset).toMatch(/recordsScrollTop\.value = 0/)
+
+    const monthStart = source.indexOf('async function loadMonth')
+    const monthEnd = source.indexOf('\nfunction changeMonth', monthStart)
+    expect(source.slice(monthStart, monthEnd)).toContain('void resetRecordsScroll()')
+
+    const dayStart = source.indexOf('async function loadDay')
+    const dayEnd = source.indexOf('\nasync function loadMoreRecords', dayStart)
+    const day = source.slice(dayStart, dayEnd)
+    const clearStart = day.indexOf('if (clearImmediately) {')
+    const clearEnd = day.indexOf('}', clearStart)
+    expect(day.slice(clearStart, clearEnd)).toContain('void resetRecordsScroll()')
+  })
 })
