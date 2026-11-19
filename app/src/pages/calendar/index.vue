@@ -38,6 +38,7 @@ let initialized = false
 const cells = computed(() => calendarCells(currentMonth.value))
 const title = computed(() => monthTitle(currentMonth.value))
 const selectedDateLabel = computed(() => formatDateLabel(selectedDate.value))
+const selectedDayCount = computed(() => dayCounts.value[selectedDate.value] ?? 0)
 const isInitialRecordsLoading = computed(
   () => recordsLoading.value && records.value.length === 0,
 )
@@ -169,7 +170,6 @@ function retry(): void {
       class="page-scroll"
       scroll-y
       lower-threshold="80"
-      @scrolltolower="loadMoreRecords"
     >
       <view class="calendar-inner">
         <view class="calendar-heading">
@@ -246,41 +246,48 @@ function retry(): void {
                 <text class="day-panel__title">{{ selectedDateLabel }}</text>
               </view>
               <text class="day-panel__count">
-                {{ records.length ? records.length + ' 条' : '空' }}
+                {{ selectedDayCount ? selectedDayCount + ' 条' : '空' }}
               </text>
             </view>
 
-            <view v-if="isInitialRecordsLoading" class="page-state day-panel__state">
-              <text class="page-state__title">正在找这一天的记录</text>
-            </view>
-
-            <view v-else-if="recordsError" class="page-state day-panel__state">
-              <text class="page-state__error">{{ recordsError }}</text>
-              <button class="app-button app-button--small" @click="loadDay(selectedDate, true)">重试</button>
-            </view>
-
-            <EmptyState
-              v-else-if="records.length === 0"
-              title="这一天很安静"
-              text="没有记录也没关系，空白也是日子的一部分。"
-            />
-
-            <template v-else>
-              <view class="day-panel__records">
-                <RecordCard
-                  v-for="record in records"
-                  :key="record.id"
-                  :record="record"
-                  :show-date="false"
-                />
+            <scroll-view
+              class="day-panel__scroll"
+              scroll-y
+              lower-threshold="80"
+              @scrolltolower="loadMoreRecords"
+            >
+              <view v-if="isInitialRecordsLoading" class="page-state day-panel__state">
+                <text class="page-state__title">正在找这一天的记录</text>
               </view>
-              <view v-if="recordsLoadingMore" class="loading-more">
-                <text>正在继续加载…</text>
+
+              <view v-else-if="recordsError" class="page-state day-panel__state">
+                <text class="page-state__error">{{ recordsError }}</text>
+                <button class="app-button app-button--small" @click="loadDay(selectedDate, true)">重试</button>
               </view>
-              <view v-else-if="!nextCursor" class="list-end">
-                <text>这一天的记录都在这里</text>
-              </view>
-            </template>
+
+              <EmptyState
+                v-else-if="records.length === 0"
+                title="这一天很安静"
+                text="没有记录也没关系，空白也是日子的一部分。"
+              />
+
+              <template v-else>
+                <view class="day-panel__records">
+                  <RecordCard
+                    v-for="record in records"
+                    :key="record.id"
+                    :record="record"
+                    :show-date="false"
+                  />
+                </view>
+                <view v-if="recordsLoadingMore" class="loading-more">
+                  <text>正在继续加载…</text>
+                </view>
+                <view v-else-if="!nextCursor" class="list-end">
+                  <text>这一天的记录都在这里</text>
+                </view>
+              </template>
+            </scroll-view>
           </view>
         </view>
       </view>
@@ -290,14 +297,18 @@ function retry(): void {
 
 <style scoped>
 .calendar-inner {
+  display: flex;
   width: 100%;
+  height: 100%;
   max-width: 1180px;
+  flex-direction: column;
   margin: 0 auto;
-  padding: 28px 42px 56px;
+  padding: 28px 42px 28px;
 }
 
 .calendar-heading {
   display: flex;
+  flex: none;
   align-items: center;
   justify-content: space-between;
   gap: 20px;
@@ -337,8 +348,11 @@ function retry(): void {
 
 .calendar-layout {
   display: grid;
+  flex: 1;
+  min-height: 0;
   grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
-  align-items: start;
+  grid-template-rows: minmax(0, 1fr);
+  align-items: stretch;
   gap: 22px;
 }
 
@@ -351,6 +365,7 @@ function retry(): void {
 }
 
 .calendar-card {
+  align-self: start;
   padding: 22px 24px 18px;
   transition: opacity 180ms ease;
 }
@@ -479,12 +494,17 @@ function retry(): void {
 }
 
 .day-panel {
-  min-height: 520px;
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
   padding: 22px;
 }
 
 .day-panel__header {
   display: flex;
+  flex: none;
   align-items: flex-end;
   justify-content: space-between;
   gap: 12px;
@@ -515,6 +535,12 @@ function retry(): void {
   letter-spacing: 0.08em;
 }
 
+.day-panel__scroll {
+  min-height: 0;
+  flex: 1;
+  height: 100%;
+}
+
 .day-panel__records {
   display: flex;
   flex-direction: column;
@@ -541,12 +567,21 @@ function retry(): void {
 }
 
 @media (max-width: 840px) {
+  .calendar-inner {
+    height: auto;
+  }
+
   .calendar-layout {
+    grid-template-rows: none;
     grid-template-columns: 1fr;
   }
 
   .day-panel {
     min-height: 0;
+  }
+
+  .day-panel__scroll {
+    height: auto;
   }
 
   .day-panel__state,
