@@ -6,10 +6,11 @@ import AppShell from '../../components/AppShell.vue'
 import EmptyState from '../../components/EmptyState.vue'
 import RecordCard from '../../components/RecordCard.vue'
 import { listRecords } from '../../api/records'
-import { getTopic } from '../../api/topics'
+import { deleteTopic, getTopic } from '../../api/topics'
 import type { RecordView, TopicSummary } from '../../api/types'
 import { useAuthStore } from '../../stores/auth'
 import {
+  topicDeleteConfirmContent,
   topicStatsLabel,
 } from '../../utils/topics'
 
@@ -21,6 +22,7 @@ const nextCursor = ref<string | null>(null)
 const filter = ref<'all' | 'starred'>('all')
 const loading = ref(false)
 const loadingMore = ref(false)
+const deleting = ref(false)
 const error = ref<string | null>(null)
 let requestVersion = 0
 
@@ -111,6 +113,33 @@ function changeFilter(next: 'all' | 'starred'): void {
   void loadPage()
 }
 
+function confirmDelete(): void {
+  if (deleting.value || !topic.value) return
+  uni.showModal({
+    title: '删除主题',
+    content: topicDeleteConfirmContent(topic.value),
+    confirmText: '删除',
+    confirmColor: '#d94b4b',
+    success: (result) => {
+      if (result.confirm) void removeTopic()
+    },
+  })
+}
+
+async function removeTopic(): Promise<void> {
+  if (deleting.value || !topic.value) return
+  deleting.value = true
+  try {
+    await deleteTopic(topic.value.id)
+    uni.showToast({ title: '已删除', icon: 'success' })
+    setTimeout(() => uni.navigateBack(), 350)
+  } catch (deleteError) {
+    showToast(messageOf(deleteError))
+  } finally {
+    deleting.value = false
+  }
+}
+
 function createRecord(): void {
   if (!topicId.value) return
   uni.navigateTo({
@@ -128,6 +157,14 @@ function createRecord(): void {
     back
   >
     <template #actions>
+      <button
+        class="app-button app-button--danger"
+        :disabled="deleting"
+        v-if="topic"
+        @click="confirmDelete"
+      >
+        {{ deleting ? '删除中…' : '删除主题' }}
+      </button>
       <button class="app-button app-button--primary" @click="createRecord">
         <AppIcon name="plus" />
         在这个主题下记录

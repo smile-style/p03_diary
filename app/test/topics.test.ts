@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { TopicSummary } from '../src/api/types'
 import {
   topicCategoryChoices,
+  topicDeleteConfirmContent,
   topicStatsLabel,
 } from '../src/utils/topics'
 
@@ -28,6 +29,28 @@ describe('topic display helpers', () => {
     expect(
       topicStatsLabel(topic({ recordCount: 0, starredCount: 0, lastRecordDate: null })),
     ).toBe('0 条 · ★0 · 暂无记录')
+  })
+
+  it('explains that records are retained when deleting a non-empty topic', () => {
+    expect(topicDeleteConfirmContent(topic())).toBe(
+      '「投资」下的 12 条记录会保留，但不再归属任何主题。删除后无法恢复，确定删除吗？',
+    )
+  })
+
+  it('uses the empty-topic confirmation when a topic has no records', () => {
+    expect(topicDeleteConfirmContent(topic({ recordCount: 0 }))).toBe(
+      '「投资」还没有记录。删除后无法恢复，确定删除吗？',
+    )
+  })
+
+  it('uses only recordCount for the delete confirmation', () => {
+    expect(
+      topicDeleteConfirmContent(
+        topic({ recordCount: 4, starredCount: 99, lastRecordDate: null }),
+      ),
+    ).toBe(
+      '「投资」下的 4 条记录会保留，但不再归属任何主题。删除后无法恢复，确定删除吗？',
+    )
   })
 
   it('builds category choices with an uncategorized option', () => {
